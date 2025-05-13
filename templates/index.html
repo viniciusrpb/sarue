@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>SarueVis - Fiocruz Brasília</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+
+  <header class="top-header">
+    <div class="header-left">
+      <img src="{{ url_for('static', filename='imgs/saruevislogo.png') }}" alt="SaruêVis" class="logo">
+    </div>
+    <div class="header-right">
+      <img src="{{ url_for('static', filename='imgs/fiocruz.png') }}" alt="Fiocruz Brasília" class="logo">
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="left-panel">
+      <h2>Unidades Básicas de Saúde</h2>
+      <select id="ubs-select">
+        <option selected disabled>Selecione uma UBS:</option>
+      </select>
+    </div>
+    <div class="right-panel">
+      <div class="top-right">
+        <div id="map"></div>
+      </div>
+      <div class="bottom-right">
+        <h2>LLM Prompt</h2>
+          <form id="llm-form">
+            <label for="question">Digite sua pergunta:</label><br>
+            <textarea id="question" name="question" rows="4" cols="50"
+                      placeholder="Ex: Qual a capital do Brasil?"></textarea><br>
+            <button type="submit">Enviar</button>
+          </form>
+
+          <div id="llm-response" style="margin-top: 10px; background: #f9f9f9; padding: 10px; border-radius: 6px;"></div>
+
+
+      </div>
+    </div>
+  </div>
+
+  <footer class="bottom-bar">
+    <p>© 2025 - SaruêVis - Fiocruz Brasília</p>
+    <p>Grupo de Inteligência Computacional na Saúde (GICS)</p>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+
+  <script src="{{ url_for('static', filename='sarue.js') }}"></script>
+</body>
+</html>
