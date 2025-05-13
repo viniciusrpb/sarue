@@ -47,6 +47,7 @@ function carregarUBSeDropdown() {
     .catch(error => console.error('Erro ao carregar UBS:', error));
 }
 
+
 document.addEventListener('DOMContentLoaded', function () {
   initMap();
   carregarUBSeDropdown();
