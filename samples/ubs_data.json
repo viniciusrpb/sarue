@@ -1,62 +1,62 @@
 [
     {
         "nome": "UBS 1 de Águas Claras",
-        "latitude": -15.8042,
-        "longitude": -48.0489,
+        "latitude": -15.854316,
+        "longitude": -48.035780,
         "endereco": "QS 05 LT 24, Av. Areal"
     },
     {
         "nome": "UBS 2 de Águas Claras",
-        "latitude": -15.8045,
-        "longitude": -48.0602,
+        "latitude": -15.859500,
+        "longitude": -48.023890,
         "endereco": "QS 08 Conj. 410 A Lote 15"
     },
     {
         "nome": "UBS 1 da Asa Norte",
-        "latitude": -15.7591,
-        "longitude": -47.9293,
+        "latitude": -15.773417,
+        "longitude": -47.892623,
         "endereco": "SGAN 905 Módulo D"
     },
     {
         "nome": "UBS 2 da Asa Norte",
-        "latitude": -15.7662,
-        "longitude": -47.9297,
+        "latitude": -15.743060,
+        "longitude": -47.891794,
         "endereco": "EQN 114/115 AE"
     },
     {
         "nome": "UBS 1 da Asa Sul",
-        "latitude": -15.7814,
-        "longitude": -47.9299,
+        "latitude": -15.832750,
+        "longitude": -47.909516,
         "endereco": "SGAS 612, Lotes 38/39"
     },
     {
         "nome": "UBS 1 de Brazlândia",
-        "latitude": -15.6148,
-        "longitude": -47.7592,
+        "latitude": -15.677169,
+        "longitude": -48.194873,
         "endereco": "EQ 6/8 Setor Norte Área Especial 3"
     },
     {
         "nome": "UBS 2 de Brazlândia",
-        "latitude": -15.6165,
-        "longitude": -47.7598,
+        "latitude": -15.658942,
+        "longitude": -48.193012,
         "endereco": "QD 45 AE 01, Vila São José"
     },
     {
         "nome": "UBS 1 do Gama",
-        "latitude": -16.0234,
-        "longitude": -48.0735,
+        "latitude": -16.020653,
+        "longitude": -48.084776,
         "endereco": "Entrequadra 06/12 Setor Sul"
     },
     {
         "nome": "UBS 2 do Gama",
-        "latitude": -16.0221,
-        "longitude": -48.0712,
+        "latitude": -16.036807,
+        "longitude": -48.061114,
         "endereco": "Quadra 11 AE Lotes A B C e D"
     },
     {
         "nome": "UBS 1 do Cruzeiro",
-        "latitude": -15.7862,
-        "longitude": -47.9264,
+        "latitude": -15.800740,
+        "longitude": -47.942244,
         "endereco": "SHCE/SUL - Quadra 611 Lote 01"
     }
 ]
