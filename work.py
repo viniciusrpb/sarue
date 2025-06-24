@@ -1,12 +1,20 @@
 from flask import Flask, request, render_template, jsonify
+import streamlit as st
+import os
+from dotenv import load_dotenv
 import spacy
 import os
 import json
-#from langchain.llms import ...
+
+load_dotenv()
+
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
+if OPENROUTER_API_KEY is None:
+    st.error("OPENROUTER_API_KEY não foi definida!")
+
+MODEL_NAME = "meta-llama/llama-3-70b-instruct"
 
 app = Flask(__name__)
-
-#llm =
 
 @app.route('/')
 def index():
@@ -24,18 +32,41 @@ def get_data():
     return jsonify({"message": "Centro de Saúde n 13 - Asa Norte", "coords": [-15.7432347,-47.8915867]})
 
 # pip install flask langchain openai
-
-@app.route('/ask', methods=['POST'])
-def ask():
+@app.route('/api/llm-chat', methods=['POST'])
+def llm_chat():
     data = request.get_json()
     question = data.get('question', '')
-    if not question.strip():
-        return jsonify({'answer': 'Pergunta vazia.'})
-    try:
-        response = llm.predict(question)
-        return jsonify({'answer': response})
-    except Exception as e:
-        return jsonify({'answer': f'Erro: {str(e)}'})
+
+    if not question:
+        return jsonify({"error": "Pergunta não fornecida."}), 400
+
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "user", "content": question}
+        ],
+        "max_tokens": 1024,
+        "temperature": 0.7
+    }
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers=headers,
+        json=payload
+    )
+
+    if response.status_code != 200:
+        return jsonify({"error": "Erro ao consultar o LLM."}), 500
+
+    response_json = response.json()
+    answer = response_json['choices'][0]['message']['content']
+
+    return jsonify({"answer": answer})
 
 @app.route('/api/ubs-info')
 def get_info():
