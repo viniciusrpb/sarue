@@ -37,5 +37,13 @@ def ask():
     except Exception as e:
         return jsonify({'answer': f'Erro: {str(e)}'})
 
+@app.route('/api/ubs-info')
+def get_info():
+    file_path = os.path.join('samples', 'database.json')
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    return jsonify(data)
+
+
 if __name__ == '__main__':
     app.run(debug=True)

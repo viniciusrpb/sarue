@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>SarueVis - Fiocruz Brasília</title>
+  <title>Saruê - Fiocruz Brasília</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
@@ -10,7 +10,7 @@
 
   <header class="top-header">
     <div class="header-left">
-      <img src="{{ url_for('static', filename='imgs/saruevislogo.png') }}" alt="SaruêVis" class="logo">
+      <img src="{{ url_for('static', filename='imgs/saruevislogo.png') }}" alt="Saruê" class="logo">
     </div>
     <div class="header-right">
       <img src="{{ url_for('static', filename='imgs/fiocruz.png') }}" alt="Fiocruz Brasília" class="logo">
@@ -19,33 +19,42 @@
 
   <div class="container">
     <div class="left-panel">
-      <h2>Unidades Básicas de Saúde</h2>
-      <select id="ubs-select">
-        <option selected disabled>Selecione uma UBS:</option>
-      </select>
+
+    <h2>Unidades Básicas de Saúde</h2><br>
+        <select id="ubs-select">
+          <option selected disabled>Selecione uma UBS:</option><br>
+        </select>
+
+      <div style="margin-top: 15px;">
+        <strong>Tipo de informação na Tooltip:</strong><br>
+        <label><input type="radio" name="info-type" value="noticias"> Notícias</label><br>
+        <label><input type="radio" name="info-type" value="oficiais"> Publicações Oficiais</label>
+      </div>
+
+      <div id="oficiais-form" style="margin-top: 15px; display: none;">
+        <div id="oficiais-checkboxes" style="margin-top: 10px;">
+          <label><input type="checkbox" name="subtipo" value="licitacoes"> Licitações</label><br>
+          <label><input type="checkbox" name="subtipo" value="contratos"> Contratos</label><br>
+          <label><input type="checkbox" name="subtipo" value="pessoal"> Pessoal</label><br>
+        </div>
+
+        <button id="load-info-btn" style="margin-top: 10px;">Enviar</button>
+      </div>
+
     </div>
     <div class="right-panel">
       <div class="top-right">
         <div id="map"></div>
       </div>
       <div class="bottom-right">
-        <h2>LLM Prompt</h2>
-          <form id="llm-form">
-            <label for="question">Digite sua pergunta:</label><br>
-            <textarea id="question" name="question" rows="4" cols="120"
-                      placeholder="Ex: Qual a capital do Brasil?"></textarea><br>
-            <button type="submit">Enviar</button>
-          </form>
-
-          <div id="llm-response" style="margin-top: 10px; background: #f9f9f9; padding: 10px; border-radius: 6px;"></div>
-
-
+        <h2>Assistente Virtual</h2>
+        <div id="webchat" style="width: 100%; height: 500px;"></div>
       </div>
     </div>
   </div>
 
   <footer class="bottom-bar">
-    <p>© 2025 - SaruêVis - Fiocruz Brasília</p>
+    <p>© 2025 - Saruê - Fiocruz Brasília</p>
     <p>Grupo de Inteligência Computacional na Saúde (GICS)</p>
   </footer>
 
