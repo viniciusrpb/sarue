@@ -1,7 +1,7 @@
 import streamlit as st
+from streamlit_folium import st_folium
+import folium
 import streamlit.components.v1 as components
-import json
-import requests
 
 st.set_page_config(layout="wide", page_title="Saruê - Fiocruz Brasília")
 
@@ -37,11 +37,16 @@ with col_dir:
 
     with mapa_col:
         st.markdown("### Mapa da UBS")
-        components.html("""
-        <div id="map" style="height:400px; width:100%">
-          <iframe src="https://leafletjs.com/examples/quick-start/" width="100%" height="400"></iframe>
-        </div>
-        """, height=420)
+
+        m = folium.Map(location=[-15.793889, -47.882778], zoom_start=12)
+
+        folium.Marker(
+            [-15.793889, -47.882778],
+            popup="UBS Central",
+            tooltip="Clique aqui"
+        ).add_to(m)
+
+        st_folium(m, width=500, height=420)
 
     with bot_col:
         st.markdown("### Assistente Virtual")
