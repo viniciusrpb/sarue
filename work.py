@@ -7,7 +7,9 @@ import json
 
 load_dotenv()
 
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
+if OPENROUTER_API_KEY is None:
+    st.error("OPENROUTER_API_KEY não foi definida!")
 
 MODEL_NAME = "meta-llama/llama-3-70b-instruct"
 
