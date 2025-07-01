@@ -1,80 +1,58 @@
-from flask import Flask, request, render_template, jsonify
 import streamlit as st
-import os
-from dotenv import load_dotenv
-import spacy
+import requests
 import os
 import json
+from dotenv import load_dotenv
 
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
-if OPENROUTER_API_KEY is None:
-    st.error("OPENROUTER_API_KEY não foi definida!")
-
 MODEL_NAME = "meta-llama/llama-3-70b-instruct"
 
-app = Flask(__name__)
+st.set_page_config(page_title="Assistente Saruê", layout="wide")
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+st.title("Assistente LLM - Saruê")
 
-@app.route('/api/ubs')
-def get_ubss():
-    inputData = os.path.join('samples', 'ubs_data.json')
-    f = open(inputData, 'r', encoding='utf-8')
-    data = json.load(f)
-    return jsonify(data)
+if not OPENROUTER_API_KEY:
+    st.error("OPENROUTER_API_KEY não foi definida no ambiente ou .env.")
+    st.stop()
 
-@app.route('/api/data')
-def get_data():
-    return jsonify({"message": "Centro de Saúde n 13 - Asa Norte", "coords": [-15.7432347,-47.8915867]})
+question = st.text_area("Digite sua pergunta para o LLM:")
 
-# pip install flask langchain openai
-@app.route('/api/llm-chat', methods=['POST'])
-def llm_chat():
-    data = request.get_json()
-    question = data.get('question', '')
+if st.button("Enviar pergunta"):
+    if not question.strip():
+        st.warning("Digite uma pergunta antes de enviar.")
+    else:
+        with st.spinner("Consultando o LLM..."):
+            try:
+                payload = {
+                    "model": MODEL_NAME,
+                    "messages": [
+                        {"role": "user", "content": question}
+                    ],
+                    "max_tokens": 1024,
+                    "temperature": 0.7
+                }
 
-    if not question:
-        return jsonify({"error": "Pergunta não fornecida."}), 400
+                headers = {
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json"
+                }
 
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {"role": "user", "content": question}
-        ],
-        "max_tokens": 1024,
-        "temperature": 0.7
-    }
+                response = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
 
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
-    }
+                if response.status_code == 200:
+                    data = response.json()
+                    answer = data['choices'][0]['message']['content']
+                    st.success("Resposta:")
+                    st.markdown(answer)
+                else:
+                    st.error(f"Erro na resposta: {response.status_code}")
+                    st.json(response.json())
 
-    response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers=headers,
-        json=payload
-    )
-
-    if response.status_code != 200:
-        return jsonify({"error": "Erro ao consultar o LLM."}), 500
-
-    response_json = response.json()
-    answer = response_json['choices'][0]['message']['content']
-
-    return jsonify({"answer": answer})
-
-@app.route('/api/ubs-info')
-def get_info():
-    file_path = os.path.join('samples', 'database.json')
-    with open(file_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    return jsonify(data)
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
+            except Exception as e:
+                st.error(f"Erro durante a requisição: {e}")
