@@ -2,5 +2,6 @@ streamlit
 requests
 python-dotenv
 streamlit-folium
+openai
 folium
 
