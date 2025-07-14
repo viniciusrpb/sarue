@@ -1,7 +1,12 @@
 import streamlit as st
 from streamlit_folium import st_folium
 import folium
-import streamlit.components.v1 as components
+import openai
+import os
+
+openai.api_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
+openai.api_base = "https://api.groq.com/openai/v1"
+model_id = "llama-3.3-70b-versatile"
 
 st.set_page_config(layout="wide", page_title="Saruê - Fiocruz Brasília")
 
@@ -49,23 +54,25 @@ with col_dir:
         st_folium(m, width=500, height=420)
 
     with bot_col:
-        st.markdown("### Assistente Virtual")
+        st.markdown("### Assistente Virtual com LLaMA 3")
 
-        components.html("""
-        <div id="webchat" style="width: 100%; height: 500px;"></div>
-        <script src="https://cdn.botpress.cloud/webchat/v3.0/inject.js"></script>
-        <script>
-        window.botpress.on("webchat:ready", () => {
-            window.botpress.open();
-        });
-        window.botpress.init({
-            "botId": "8a3fd55b-b5f6-423c-a209-3613516526d2",
-            "configuration": {},
-            "clientId": "6c132f0e-1d4b-4d30-b068-213c294322cb",
-            "selector": "#webchat"
-        });
-        </script>
-        """, height=520)
+        pergunta = st.text_input("Digite sua pergunta:")
+
+        if st.button("Perguntar") and pergunta.strip():
+            with st.spinner("Consultando o LLaMA 3 via Groq..."):
+                try:
+                    resposta = openai.ChatCompletion.create(
+                        model=model_id,
+                        messages=[
+                            {"role": "system", "content": "Você é um assistente útil e preciso, com foco em saúde pública e serviços públicos brasileiros."},
+                            {"role": "user", "content": pergunta}
+                        ],
+                        temperature=0.3
+                    )
+                    st.markdown("**Resposta:**")
+                    st.write(resposta["choices"][0]["message"]["content"])
+                except Exception as e:
+                    st.error(f"Ocorreu um erro ao consultar o modelo: {e}")
 
 st.markdown("---")
 st.markdown("© 2025 - Saruê - Fiocruz Brasília  \nGrupo de Inteligência Computacional na Saúde (GICS)")
