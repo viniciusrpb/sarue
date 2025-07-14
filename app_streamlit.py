@@ -54,12 +54,12 @@ with col_dir:
         st_folium(m, width=500, height=420)
 
     with bot_col:
-        st.markdown("### Assistente Virtual com LLaMA 3")
+        st.markdown("### Chatbot")
 
         pergunta = st.text_input("Digite sua pergunta:")
 
         if st.button("Perguntar") and pergunta.strip():
-            with st.spinner("Consultando o LLaMA 3 via Groq..."):
+            with st.spinner("Aguarde..."):
                 try:
                     resposta = openai.ChatCompletion.create(
                         model=model_id,
