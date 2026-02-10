@@ -47,6 +47,8 @@ def load_documents():
 def setup_retriever():
     docs = load_documents()
 
+    st.write(docs)
+
     splitter = CharacterTextSplitter(
         chunk_size=600,
         chunk_overlap=80
