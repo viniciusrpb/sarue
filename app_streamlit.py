@@ -25,7 +25,7 @@ def load_documents():
     documents = []
 
     for path in paths:
-        df = pd.read_csv(os.path.join(base_dir, path),sep="\t",engine="python",on_bad_lines="skip",encoding="utf-8")
+        df = pd.read_csv(os.path.join(base_dir, path),sep=";",engine="python",on_bad_lines="skip",encoding="utf-8")
         st.write(df.columns)
 
         for _, row in df.iterrows():
