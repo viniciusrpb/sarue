@@ -25,7 +25,7 @@ def load_documents():
     documents = []
 
     for path in paths:
-        df = pd.read_csv(os.path.join(base_dir, path))
+        df = pd.read_csv(os.path.join(base_dir, path),sep='\t')
 
         for _, row in df.iterrows():
             titulo = str(row.get("titulo", "")).strip()
