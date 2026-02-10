@@ -5,4 +5,13 @@ python-dotenv
 streamlit-folium
 openai==0.28
 folium
+numpy
+pandas
+groq
+langchain
+langchain-text-splitters
+langchain-core
+langchain-community
+sentence-transformers
+faiss-cpu
 
