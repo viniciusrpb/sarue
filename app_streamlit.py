@@ -20,7 +20,7 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 @st.cache_data(show_spinner=False)
 def load_documents():
     base_dir = os.path.join(os.path.dirname(__file__), "samples")
-    paths = ["noticias_ses_1_100.csv", "fiocruz_noticias.csv", "min_saude.csv"]
+    paths = ["noticias_ses_1_100.csv"]#, "fiocruz_noticias.csv", "min_saude.csv"]
 
     documents = []
 
