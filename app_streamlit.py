@@ -26,7 +26,8 @@ def load_documents():
 
     for path in paths:
         df = pd.read_csv(os.path.join(base_dir, path),sep="\t",engine="python",on_bad_lines="skip",encoding="utf-8")
-        st.write(df)
+        st.write(df.columns)
+
         for _, row in df.iterrows():
             titulo = str(row.get("title", "")).strip()
             noticia = str(row.get("content", "")).strip()
