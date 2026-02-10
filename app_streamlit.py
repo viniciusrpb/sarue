@@ -1,78 +1,130 @@
 import streamlit as st
-from streamlit_folium import st_folium
-import folium
-import openai
+import pandas as pd
 import os
+from groq import Groq
+import folium
+from streamlit_folium import st_folium
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.schema import Document
 
-openai.api_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
-openai.api_base = "https://api.groq.com/openai/v1"
-model_id = "llama-3.3-70b-versatile"
 
-st.set_page_config(layout="wide", page_title="Saruê - Fiocruz Brasília")
+st.set_page_config(page_title="Saruê ::: Fiocruz Brasília", layout="wide")
 
-col1, col2 = st.columns([1, 1])
-with col1:
-    st.image("static/imgs/saruevislogo.png", width=160)
-with col2:
-    st.image("static/imgs/fiocruz.png", width=160)
+st.title("Saruê ::: Fiocruz Brasília")
 
-st.markdown("---")
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-col_esq, col_dir = st.columns([1, 3])
+@st.cache_data(show_spinner=False)
+def load_documents():
+    base_dir = os.path.join(os.path.dirname(__file__), "samples")
+    paths = ["noticias_ses_1_100.csv", "fiocruz_noticias.csv", "min_saude.csv"]
 
-with col_esq:
-    st.subheader("Unidades Básicas de Saúde")
+    documents = []
 
-    ubs_list = ["Selecione uma UBS", "UBS 1", "UBS 2", "UBS 3"]
-    selected_ubs = st.selectbox("Escolha uma UBS:", ubs_list)
+    for path in paths:
+        df = pd.read_csv(os.path.join(base_dir, path))
 
-    st.markdown("**Tipo de informação na Tooltip:**")
-    tipo_info = st.radio("Escolha:", ["Notícias", "Publicações Oficiais"])
+        for _, row in df.iterrows():
+            titulo = str(row.get("titulo", "")).strip()
+            noticia = str(row.get("noticia", "")).strip()
 
-    if tipo_info == "Publicações Oficiais":
-        subtipo_licitacoes = st.checkbox("Licitações")
-        subtipo_contratos = st.checkbox("Contratos")
-        subtipo_pessoal = st.checkbox("Pessoal")
+            text = f"{titulo}\n\n{noticia}".strip()
 
-    if st.button("Enviar"):
-        st.success(f"Filtrando para: {selected_ubs} - {tipo_info}")
-
-with col_dir:
-    mapa_col, bot_col = st.columns([1, 1])
-
-    with mapa_col:
-        st.markdown("### Mapa da UBS")
-
-        m = folium.Map(location=[-15.793889, -47.882778], zoom_start=12)
-
-        folium.Marker(
-            [-15.793889, -47.882778],
-            popup="UBS Central",
-            tooltip="Clique aqui"
-        ).add_to(m)
-
-        st_folium(m, width=500, height=420)
-
-    with bot_col:
-        st.markdown("### Chatbot")
-
-        pergunta = st.text_input("Digite sua pergunta:")
-
-        if st.button("Perguntar") and pergunta.strip():
-            with st.spinner("Aguarde..."):
-                try:
-                    resposta = openai.ChatCompletion.create(
-                        model=model_id,
-                        messages=[
-                            {"role": "system", "content": "Você é um assistente útil e preciso, com foco em saúde pública e serviços públicos brasileiros."},
-                            {"role": "user", "content": pergunta}
-                        ],
-                        temperature=0.3
+            if len(text) > 50:
+                documents.append(
+                    Document(
+                        page_content=text,
+                        metadata={"source": path}
                     )
-                    st.markdown("**Resposta:**")
-                    st.write(resposta["choices"][0]["message"]["content"])
-                except Exception as e:
-                    st.error(f"Ocorreu um erro ao consultar o modelo: {e}")
+                )
+
+    return documents
+
+@st.cache_resource(show_spinner=False)
+def setup_retriever():
+    docs = load_documents()
+
+    splitter = CharacterTextSplitter(
+        chunk_size=600,
+        chunk_overlap=80
+    )
+
+    chunks = splitter.split_documents(docs)
+
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
+
+    db = FAISS.from_documents(chunks, embedding=embeddings)
+
+    return db.as_retriever(search_kwargs={"k": 5})
+
+retriever = setup_retriever()
+
+col_map, col_chat = st.columns([1, 1])
+
+with col_map:
+    st.subheader("Mapa da UBS")
+
+    m = folium.Map(location=[-15.793889, -47.882778], zoom_start=12, tiles="CartoDB positron")
+
+    folium.Marker([-15.793889, -47.882778], popup="UBS Central", tooltip="UBS Central").add_to(m)
+
+    st_folium(m, width=500, height=450)
+
+with col_chat:
+    st.subheader("Assistente em Saúde Pública (RAG)")
+
+    pergunta = st.text_input("Digite sua pergunta:")
+
+    if pergunta:
+        with st.spinner("Buscando evidências nos documentos..."):
+            documentos = retriever.invoke(pergunta)
+
+            contexto = "\n\n---\n\n".join(
+                [doc.page_content for doc in documentos]
+            )
+
+            prompt = f"""
+Você é um assistente especializado em saúde pública brasileira.
+Responda exclusivamente com base nas informações fornecidas no contexto.
+Se a resposta não estiver claramente presente, diga que não encontrou evidência suficiente.
+
+Contexto:
+{contexto}
+
+Pergunta:
+{pergunta}
+
+Resposta:
+"""
+
+            response = client.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Você responde de forma técnica, objetiva e em português."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.3,
+                max_tokens=600
+            )
+
+            resposta = response.choices[0].message.content
+
+            st.markdown("Resposta")
+            st.write(resposta)
+
 
 st.markdown("---")
-st.markdown("© 2025 - Saruê - Fiocruz Brasília  \nGrupo de Inteligência Computacional na Saúde (GICS)")
+st.markdown(
+    "© 2026 – **Saruê** – Fiocruz Brasília  \n"
+    "Grupo de Inteligência Computacional na Saúde (GICS)"
+)
