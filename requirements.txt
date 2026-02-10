@@ -9,8 +9,6 @@ numpy
 pandas
 groq
 langchain
-langchain-text-splitters
-langchain-core
 langchain-community
 sentence-transformers
 faiss-cpu
