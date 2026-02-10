@@ -25,7 +25,7 @@ def load_documents():
     documents = []
 
     for path in paths:
-        df = pd.read_csv(os.path.join(base_dir, path),sep='\t')
+        df = pd.read_csv(os.path.join(base_dir, path),sep="\t",engine="python",on_bad_lines="skip",encoding="utf-8")
 
         for _, row in df.iterrows():
             titulo = str(row.get("titulo", "")).strip()
@@ -57,6 +57,9 @@ def setup_retriever():
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
+
+    st.write("Total de documentos:", len(docs))
+    st.write("Total de chunks:", len(chunks))
 
     db = FAISS.from_documents(chunks, embedding=embeddings)
 
