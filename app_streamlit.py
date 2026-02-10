@@ -7,7 +7,8 @@ from streamlit_folium import st_folium
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import CharacterTextSplitter
-from langchain.schema import Document
+from langchain_core.documents import Document
+
 
 
 st.set_page_config(page_title="Saruê ::: Fiocruz Brasília", layout="wide")
