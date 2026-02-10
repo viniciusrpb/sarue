@@ -90,9 +90,13 @@ with col_chat:
         with st.spinner("Buscando evidências nos documentos..."):
             documentos = retriever.invoke(pergunta)
 
-            contexto = "\n\n---\n\n".join(
-                [doc.page_content for doc in documentos]
-            )
+            MAX_CHARS = 6000  # seguro para 8k tokens
+
+            contexto = ""
+            for doc in documentos:
+                if len(contexto) + len(doc.page_content) > MAX_CHARS:
+                    break
+                contexto += doc.page_content + "\n\n---\n\n"
 
             prompt = f"""
 Você é um assistente especializado em saúde pública brasileira.
@@ -109,7 +113,7 @@ Resposta:
 """
 
             response = client.chat.completions.create(
-                model="llama3-70b-8192",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {
                         "role": "system",
