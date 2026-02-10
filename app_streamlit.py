@@ -28,8 +28,8 @@ def load_documents():
         df = pd.read_csv(os.path.join(base_dir, path),sep="\t",engine="python",on_bad_lines="skip",encoding="utf-8")
 
         for _, row in df.iterrows():
-            titulo = str(row.get("titulo", "")).strip()
-            noticia = str(row.get("noticia", "")).strip()
+            titulo = str(row.get("title", "")).strip()
+            noticia = str(row.get("content", "")).strip()
 
             text = f"{titulo}\n\n{noticia}".strip()
 
