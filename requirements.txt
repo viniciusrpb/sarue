@@ -4,6 +4,7 @@ requests
 python-dotenv
 streamlit-folium
 openai==0.28
+torchvision
 folium
 numpy
 pandas
