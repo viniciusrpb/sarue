@@ -21,24 +21,24 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 HEADERS_OSM = {"User-Agent": "Sarue-Fiocruz/2.0 (fiocruz.br)"}
 
 OSM_CATEGORIES = {
-    "hospital":         ("amenity", "hospital",         "🏥", "red"),
-    "ubs":              ("amenity", "clinic",            "🏥", "blue"),
-    "ups":              ("amenity", "clinic",            "🏥", "blue"),
-    "clinica":          ("amenity", "clinic",            "🏥", "blue"),
-    "clínica":          ("amenity", "clinic",            "🏥", "blue"),
-    "farmacia":         ("amenity", "pharmacy",          "💊", "green"),
-    "farmácia":         ("amenity", "pharmacy",          "💊", "green"),
-    "medico":           ("amenity", "doctors",           "👨‍⚕️", "cadetblue"),
-    "médico":           ("amenity", "doctors",           "👨‍⚕️", "cadetblue"),
-    "dentista":         ("amenity", "dentist",           "🦷", "purple"),
-    "social":           ("amenity", "social_facility",   "🤝", "orange"),
-    "cras":             ("amenity", "social_facility",   "🤝", "orange"),
-    "creas":            ("amenity", "social_facility",   "🤝", "orange"),
-    "escola":           ("amenity", "school",            "🏫", "darkblue"),
-    "creche":           ("amenity", "kindergarten",      "👶", "pink"),
-    "saude":            ("healthcare", "*",              "➕", "red"),
-    "saúde":            ("healthcare", "*",              "➕", "red"),
-    "academia":         ("leisure",  "fitness_centre",   "🏋️", "darkgreen"),
+    "hospital": ("amenity", "hospital", "🏥", "red"),
+    "ubs": ("amenity", "clinic", "🏥", "blue"),
+    "ups": ("amenity", "clinic", "🏥", "blue"),
+    "clinica": ("amenity", "clinic", "🏥", "blue"),
+    "clínica": ("amenity", "clinic", "🏥", "blue"),
+    "farmacia": ("amenity", "pharmacy", "💊", "green"),
+    "farmácia": ("amenity", "pharmacy", "💊", "green"),
+    "medico": ("amenity", "doctors", "👨‍⚕️", "cadetblue"),
+    "médico": ("amenity", "doctors", "👨‍⚕️", "cadetblue"),
+    "dentista": ("amenity", "dentist", "🦷", "purple"),
+    "social": ("amenity", "social_facility", "🤝", "orange"),
+    "cras": ("amenity", "social_facility", "🤝", "orange"),
+    "creas": ("amenity", "social_facility", "🤝", "orange"),
+    "escola": ("amenity", "school", "🏫", "darkblue"),
+    "creche": ("amenity", "kindergarten", "👶", "pink"),
+    "saude": ("healthcare", "*", "➕", "red"),
+    "saúde": ("healthcare", "*","➕", "red"),
+    "academia": ("leisure", "fitness_centre", "🏋️", "darkgreen"),
 }
 
 DF_BBOX = "-16.05,-48.28,-15.48,-47.30"
@@ -51,7 +51,7 @@ def _norm(s):
 @st.cache_data(show_spinner=False)
 def load_geojson():
     base_dir = os.path.dirname(__file__)
-    path = os.path.join(base_dir, "samples", "setoresDF.json")
+    path = os.path.join(base_dir, "database", "setoresDF.json")
     with open(path, encoding="utf-8") as f:
         gj = json.load(f)
 
@@ -85,35 +85,58 @@ def load_documents():
         for _, row in df.iterrows():
             titulo  = str(row.get("title",   "")).strip()
             noticia = str(row.get("content", "")).strip()
-            text    = f"{titulo}\n\n{noticia}".strip()
+            text = f"{titulo}\n\n{noticia}".strip()
             if len(text) > 50:
-                documents.append(
-                    Document(page_content=text, metadata={"source": path})
-                )
+                documents.append( Document(page_content=text, metadata={"source": path}) )
     return documents
 
+@st.cache_data
+def load_dengue_data():
+    path = os.path.join(os.path.dirname(__file__), "database", "dados_dengue-16042026-ano_2026.csv")
+    df = pd.read_csv(path)
+
+    df.columns = [c.lower() for c in df.columns]
+
+    return df
+
+def aggregate_dengue_by_sector(df):
+    # exemplo: coluna 'cd_setor' e 'casos'
+    grouped = df.groupby("cd_setor")["casos"].sum().reset_index()
+    return grouped
+
+def attach_dengue_to_geojson():
+    gj, by_code, _ = load_geojson()
+    df = load_dengue_data()
+    agg = aggregate_dengue_by_sector(df)
+
+    dengue_map = dict(zip(agg["cd_setor"], agg["casos"]))
+
+    for feat in gj["features"]:
+        code = feat["properties"].get("CD_SETOR")
+        feat["properties"]["dengue_casos"] = dengue_map.get(code, 0)
+
+    return gj
 
 @st.cache_resource(show_spinner=False)
 def setup_retriever():
-    docs       = load_documents()
-    splitter   = CharacterTextSplitter(chunk_size=600, chunk_overlap=80)
-    chunks     = splitter.split_documents(docs)
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    )
+    docs = load_documents()
+    splitter = CharacterTextSplitter(chunk_size=600, chunk_overlap=80)
+    chunks = splitter.split_documents(docs)
+    embeddings = HuggingFaceEmbeddings(model_name="juridics/bertimbau-base-portuguese-sts-scale") #vou tentar isso aqui, eh novo!!!
+
     db = FAISS.from_documents(chunks, embedding=embeddings)
     return db.as_retriever(search_kwargs={"k": 5})
 
 def geocode(address):
 
     params = {
-        "q":              f"{address}, Distrito Federal, Brasil",
-        "format":         "json",
-        "limit":          5,
+        "q": f"{address}, Distrito Federal, Brasil",
+        "format": "json",
+        "limit": 5,
         "addressdetails": 1,
-        "countrycodes":   "br",
-        "viewbox":        "-48.28,-16.05,-47.30,-15.48",
-        "bounded":        1,
+        "countrycodes": "br",
+        "viewbox": "-48.28,-16.05,-47.30,-15.48",
+        "bounded": 1,
     }
     try:
         r = requests.get(
@@ -122,14 +145,16 @@ def geocode(address):
             headers=HEADERS_OSM,
             timeout=10,
         )
+
         r.raise_for_status()
         results = r.json()
         return [
             {
                 "display_name": d["display_name"],
-                "lat":          float(d["lat"]),
-                "lon":          float(d["lon"]),
-                "osm_type":     d.get("type", ""),
+                "lat": float(d["lat"]),
+                "lon": float(d["lon"]),
+                "osm_type": d.get("type", ""),
+
             }
             for d in results
         ], None
@@ -173,8 +198,7 @@ def search_poi(category, area_name):
     query = _overpass_query(osm_key, osm_val, area_name)
 
     try:
-        r = requests.post(
-            "https://overpass-api.de/api/interpreter",
+        r = requests.post("https://overpass-api.de/api/interpreter",
             data={"data": query},
             headers=HEADERS_OSM,
             timeout=30,
@@ -245,12 +269,13 @@ def parse_command(user_text: str) -> dict:
 Classifique a mensagem e responda APENAS com JSON puro (sem markdown, sem explicação).
 
 Ações:
-- "draw"    → desenhar polígonos de setor censitário de uma RA no mapa
-- "remove"  → remover uma camada específica do mapa
-- "clear"   → remover TODAS as camadas do mapa
-- "poi"     → buscar pontos de interesse no OpenStreetMap (hospitais, farmácias, UBS etc.)
-- "geocode" → localizar e marcar um endereço ou lugar específico no mapa
-- "none"    → pergunta de saúde pública ou assunto não relacionado ao mapa
+- "draw": desenhar polígonos de setor censitário de uma RA no mapa
+- "remove": remover uma camada específica do mapa
+- "clear": remover TODAS as camadas do mapa
+- "poi": buscar pontos de interesse no OpenStreetMap (hospitais, farmácias, UBS etc.)
+- "geocode": localizar e marcar um endereço ou lugar específico no mapa
+- "none": pergunta de saúde pública ou assunto não relacionado ao mapa
+- "dengue": visualizar casos de dengue no mapa (mapa temático por setor)
 
 RAs disponíveis (para draw/remove): {subdist_str}
 Categorias de POI disponíveis: {poi_cats_str}
@@ -288,9 +313,9 @@ Regras:
 
 
 def execute_command(parsed):
-    action   = parsed.get("action",   "none")
-    target   = parsed.get("target",   "") or ""
-    area     = parsed.get("area",     None)
+    action = parsed.get("action", "none")
+    target = parsed.get("target", "") or ""
+    area = parsed.get("area", None)
     category = parsed.get("category", None) or target
 
     if action == "clear":
@@ -400,6 +425,15 @@ def execute_command(parsed):
 
     return None
 
+def get_color(value):
+    if value > 100: return "#800026"
+    elif value > 50: return "#BD0026"
+    elif value > 20: return "#E31A1C"
+    elif value > 10: return "#FC4E2A"
+    elif value > 5: return "#FD8D3C"
+    elif value > 0: return "#FEB24C"
+    else: return "#FFEDA0"
+
 def answer_health_question(pergunta: str) -> str:
     documentos = retriever.invoke(pergunta)
     MAX_CHARS  = 6000
@@ -432,8 +466,6 @@ def answer_health_question(pergunta: str) -> str:
     )
     return resp.choices[0].message.content
 
-
-
 retriever = setup_retriever()
 
 if "drawn_layers" not in st.session_state:
@@ -446,6 +478,11 @@ if "map_center" not in st.session_state:
     st.session_state["map_center"]   = [-15.793889, -47.882778]
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
+if action == "dengue":
+
+    gj = attach_dengue_to_geojson()
+    st.session_state["dengue_layer"] = gj
+    return "🦟 Mapa de casos de dengue carregado por setor censitário."
 
 POLY_COLORS = [
     "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
@@ -469,6 +506,19 @@ with col_map:
                 st.session_state[store] = {}
             st.rerun()
 
+    if "dengue_layer" in st.session_state:
+        folium.Choropleth(
+            geo_data=st.session_state["dengue_layer"],
+            data=None,
+            columns=None,
+            key_on="feature.properties.CD_SETOR",
+            fill_color="YlOrRd",
+            fill_opacity=0.7,
+            line_opacity=0.2,
+            legend_name="Casos de Dengue",
+            highlight=True,
+        ).add_to(m)
+
     center = st.session_state["map_center"]
     m = folium.Map(location=center, zoom_start=12, tiles="CartoDB positron")
 
@@ -479,15 +529,29 @@ with col_map:
             payload,
             name=label,
             style_function=lambda _, c=color: {
-                "fillColor":   c,
-                "color":       c,
-                "weight":      1.2,
+                "fillColor": c,
+                "color": c,
+                "weight": 1.2,
                 "fillOpacity": 0.30,
             },
             tooltip=folium.GeoJsonTooltip(
                 fields=["CD_SETOR", "NM_SUBDIST"],
                 aliases=["Setor:", "RA:"],
             ),
+        ).add_to(m)
+
+        folium.GeoJson(
+            st.session_state["dengue_layer"],
+            style_function=lambda feature: {
+                "fillColor": get_color(feature["properties"]["dengue_casos"]),
+                "color": "black",
+                "weight": 0.3,
+                "fillOpacity": 0.7,
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=["NM_SUBDIST", "dengue_casos"],
+                aliases=["Região:", "Casos:"]
+            )
         ).add_to(m)
 
     for label, layer in st.session_state["poi_layers"].items():
@@ -530,36 +594,6 @@ with col_map:
 with col_chat:
     st.subheader("Assistente")
 
-    with st.expander("💡 Exemplos de comandos"):
-        st.markdown("""
-            **Setores censitários (GeoJSON local):**
-            - *Desenha Ceilândia no mapa*
-            - *Mostra os setores de Taguatinga*
-            - *Marca o setor 530010805060005*
-
-            **Pontos de interesse – OpenStreetMap (Overpass API):**
-            - *Mostra os hospitais de Ceilândia*
-            - *Farmácias em Samambaia*
-            - *UBS no Riacho Fundo*
-            - *Clínicas no Plano Piloto*
-            - *Escolas em Sobradinho*
-
-            **Endereços e lugares (Nominatim / OSM):**
-            - *Onde fica a ESCS?*
-            - *Localiza o Hospital Regional de Taguatinga*
-            - *Marca o endereço: SQN 302, Asa Norte*
-            - *Fiocruz Brasília*
-
-            **Gerenciar camadas:**
-            - *Remove Ceilândia do mapa*
-            - *Apaga os hospitais*
-            - *Limpa tudo do mapa*
-
-            **Saúde pública (RAG):**
-            - *Quais são as principais doenças notificadas no DF?*
-            - *Como está a cobertura vacinal?*
-            """)
-
     for msg in st.session_state["chat_history"]:
         role_label = "🧑 Você" if msg["role"] == "user" else "🤖 Agente"
         with st.chat_message(msg["role"]):
@@ -595,7 +629,4 @@ with col_chat:
             st.rerun()
 
 st.markdown("---")
-st.markdown(
-    "© 2026 – **Saruê** – Fiocruz Brasília  \n"
-    "Grupo de Inteligência Computacional na Saúde (GICS)"
-)
+st.markdown("© 2026 : Saruê - Fiocruz Brasília\nGrupo de Inteligência Computacional na Saúde (GICS)")
