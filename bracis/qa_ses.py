@@ -1,47 +1,3 @@
-"""
-gerar_qa_dodf.py
-----------------
-Lê o JSON consolidado do DODF (saída de processar_dodf.py) e gera
-exatamente 3 000 pares pergunta-resposta usando a API do ChatGPT (OpenAI).
-
-Distribuição:
-  • Proporcional ao número de publicações em cada seção (Seção I / II / III)
-    dentro de cada dia.
-  • Dentro de cada seção, cada publicação recebe pelo menos 1 par;
-    os pares extras são distribuídos proporcionalmente ao tamanho do texto.
-
-Estilos de pergunta variados (instruídos no prompt):
-  valores financeiros, contratos/licitações, vigências/prazos,
-  cargos/servidores, dados normativos gerais, perguntas cruzando
-  múltiplas publicações do mesmo dia.
-
-Saída: dataset_qa_dodf.json
-  [
-    {
-      "pergunta": "...",
-      "resposta": "...",
-      "secao": "Seção II",
-      "fonte": "Edição 84 — 2025-05-08"
-    },
-    ...
-  ]
-
-Uso:
-    export OPENAI_API_KEY="sk-..."
-    python gerar_qa_dodf.py --entrada resultado_saude.json --saida dataset_qa_dodf.json
-
-    # Opções avançadas
-    python gerar_qa_dodf.py \\
-        --entrada resultado_saude.json \\
-        --saida dataset_qa_dodf.json \\
-        --total 3000 \\
-        --modelo gpt-4o-mini \\
-        --pares-por-chamada 5 \\
-        --max-workers 5 \\
-        --checkpoint checkpoint_qa.json
-"""
-
-import argparse
 import json
 import os
 import random
@@ -51,339 +7,746 @@ import time
 import unicodedata
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from datetime import datetime
 
-CUSTO = {
-    "gen_input": 0,
-    "gen_output": 0,
-    "val_input": 0,
-    "val_output": 0,
-}
+import tiktoken
+from openai import OpenAI, RateLimitError
 
-try:
-    from openai import OpenAI, RateLimitError, APIError
-except ImportError:
-    print("[ERRO] Instale o SDK da OpenAI:  pip install openai", file=sys.stderr)
-    sys.exit(1)
-
-TOTAL_PARES = 2_000
-MODELO_PADRAO = "gpt-4o-mini"
-PARES_POR_CHAMADA = 5        # quantos pares pedir de uma vez ao modelo
-MAX_WORKERS = 5              # chamadas paralelas à API
+TOTAL_MULTI = 10
+MODELO = "gpt-4o-mini"
+MAX_WORKERS = 1
 MAX_RETRIES = 5
-BACKOFF_BASE = 2.0           # segundos de espera inicial em retry
+BACKOFF_BASE = 2.0
+TPM_LIMIT = 200_000
+TPM_SOFT = int(TPM_LIMIT * 0.75)
 
-ESTILOS = [
-    "valor financeiro ou orçamentário (R$, dotação, fonte de recurso)",
-    "contrato, licitação ou processo administrativo (número, objeto, partes)",
-    "vigência, prazo ou data de publicação/validade",
-    "localização geográfica (Região Administrativa, bairro ou endereço mencionado)",
-    "identificação de unidade de saúde (UBS, UPA, hospital) e sua localização",
-    "objetivo ou ementa geral do ato",
-    "pergunta que relacione informações de duas ou mais publicações do mesmo dia/seção",
-]
+CONTEXT_WINDOW = 128_000
+OUTPUT_RESERVADO = 800
+PROMPT_OVERHEAD = 600
+MAX_TOKENS_INPUT = CONTEXT_WINDOW - OUTPUT_RESERVADO - PROMPT_OVERHEAD
+
+MAX_TOKENS_DOC_MULTI = 2_000
+MAX_DOCS_MULTI = 10
+
+API_KEY=os.environ["OPENAI_API_KEY"]
+
+CUSTO = {"gen_input": 0, "gen_output": 0, "val_input": 0, "val_output": 0}
+
+tokens_usados = 0
+janela_inicio = time.time()
+
+_enc = tiktoken.encoding_for_model("gpt-4o-mini")
+
+
+def contar_tokens(texto):
+    return len(_enc.encode(texto))
+
+
+def truncar_tokens(texto, max_tokens):
+    texto = sanitizar_texto(texto)
+    ids = _enc.encode(texto)
+    if len(ids) <= max_tokens:
+        return texto
+    return _enc.decode(ids[:max_tokens]) + " [... texto truncado]"
+
 
 SYSTEM_PROMPT = """\
-Você é um especialista em Direito Administrativo e em publicações do \
-Diário Oficial do Distrito Federal (DODF). \
-Sua tarefa é criar pares de PERGUNTA e RESPOSTA baseados exclusivamente \
-no(s) texto(s) fornecido(s). As respostas devem ser precisas e fundamentadas \
-no conteúdo das publicações — nunca invente informações ausentes no texto.
+Você é um especialista em saúde pública, com foco na análise de publicações do Diário Oficial do Distrito Federal (DODF). \
+Sua tarefa é criar pares de PERGUNTA e RESPOSTA baseados exclusivamente no texto fornecido. As respostas devem ser precisas e fundamentadas \
+no conteúdo da publicação — nunca invente informações ausentes no texto.
 """
 
-USER_TEMPLATE = """\
-Abaixo estão {n_pubs} publicação(ões) da {secao} do DODF, \
-edição {edicao}, data {data}:
+USER_TEMPLATE_DIRECT = """\
+Abaixo está UMA publicação do DODF:
 
-{blocos}
+{contexto}
 
----
+LOCALIDADES ENCONTRADAS:
+{lista_loc}
 
-Crie EXATAMENTE {n_pares} par(es) de pergunta e resposta com base nesses textos.
-Varie os estilos de pergunta conforme a lista a seguir (use cada estilo \
-pelo menos uma vez quando houver pares suficientes):
-{estilos}
+TÓPICOS ENCONTRADOS:
+{topicos}
 
-REGRAS:
-1. Cada pergunta deve ser objetiva e ter resposta encontrável no(s) texto(s).
-2. Prefira perguntas específicas (números, datas, nomes, valores).
-3. NÃO repita perguntas entre si.
-4. Responda APENAS com um array JSON válido, sem markdown, sem texto extra:
-[
-  {{"pergunta": "...", "resposta": "..."}},
-  ...
-]
-5. Inclua obrigatoriamente perguntas que envolvam localização geográfica
-   (Regiões Administrativas do DF, UBSs, hospitais, etc.) quando essa
-   informação estiver presente no texto.
+==============================
+TAREFA
+==============================
+
+Gere exatamente {n_pares} pares de PERGUNTA e RESPOSTA com base no texto.
+
+==============================
+TIPO DE PERGUNTA
+==============================
+
+Cada pergunta DEVE conter explicitamente UMA localidade presente em LOCALIDADES ENCONTRADAS.
+
+Se existir pelo menos um item em TÓPICOS ENCONTRADOS:
+    - ENTÃO a pergunta DEVE estar contextualizada em pelo menos um desses tópicos
+    - SENÃO ignore essa regra
+
+==============================
+REGRAS CRÍTICAS
+==============================
+
+Você deve gerar perguntas diretas contendo explicitamente uma localidade.
+
+A) PROIBIÇÃO DE REFERÊNCIA DOCUMENTAL EXPLÍCITA
+
+Perguntas NÃO podem conter estruturas nominais associadas a documentos, como:
+
+- "do contrato"
+- "do termo"
+- "do valor"
+- "do pregão"
+- "da ata"
+
+Também NÃO podem usar expressões como:
+
+- "relacionado ao contrato"
+- "previsto no contrato"
+- "referente ao contrato"
+
+*** Exemplos válidos ***
+
+- "Qual aquisição foi realizada para a UBS do Gama?"
+- "Qual é a situação sobre o fornecimento de insumos de enfermaria em Ceilândia?"
+- "Quais serviços foram contratados para a UBS Santa Maria?"
+
+*** Exemplos inválidos ***
+
+- "Qual é a finalidade do contrato para a UPA de Ceilândia?"
+    ERRO: contém "do contrato", contradiz a regra A.
+- "Qual é o valor recebido para campanha de vacinação na localidade de Ceilândia?"
+    ERRO: redundância "localidade de Ceilândia", contradizendo a regra C
+
+IMPORTANTE: NÃO COLOQUE "localidade de..." ou "região de..." antes de mencionar explicitamente a região nas perguntas. Evite redundância e seja direto.
+
+==============================
+RESPOSTA
+==============================
+
+A resposta deve:
+
+- estar explicitamente suportada pelo texto, podendo estar no início, meio ou final, conforme os exemplos abaixo
+    "De acordo com o Contrato nº [X], publicado na Edição [Y] do DODF, de [data], ...",
+    "Conforme o Termo Aditivo nº [X], publicado na Edição [Y] do DODF, de [data], ...",
+    "... foi mencionado no Termo de Doação nº [X], publicado na Edição [Y] do DODF, de [data], ...",
+- ser completa e natural
+
+Exemplo válido:
+
+- Para a pergunta "Qual unidade de saúde foi beneficiada com a aquisição de um novo lote de vacinas?", a resposta VÁLIDA é: "A UBS 12 da região do Gama recebeu um lote de vacinas contra a febre amarela em virtude do Termo de Doação nº 38/2025, publicado na Edição 05 do DODF, de 22/11/2025."
+
+==============================
+SAÍDA (JSON)
+==============================
+
+{{
+  "data": [
+    {{
+      "pergunta": "...",
+      "resposta": "..."
+    }}
+  ]
+}}
+
+Retorne APENAS o JSON.
+Sem explicações.
 """
 
-# ---------------------------------------------------------------------------
-# Utilitários
-# ---------------------------------------------------------------------------
+################################
 
-def imprimir_custo():
+USER_TEMPLATE_MULTI = """\
+Abaixo existem diversas publicações do DODF:
 
-    # preços aproximados do gpt-4o-mini
-    PRECO_INPUT = 0.00015 / 1000
-    PRECO_OUTPUT = 0.0006 / 1000
+{contexto}
 
-    custo_gen = (
-        CUSTO["gen_input"] * PRECO_INPUT +
-        CUSTO["gen_output"] * PRECO_OUTPUT
+LOCALIDADE-ALVO:
+{lista_loc}
+
+TÓPICOS ASSOCIADOS:
+{topicos}
+
+==============================
+TAREFA
+==============================
+
+Você deve gerar pares de PERGUNTA e RESPOSTA baseados EXCLUSIVAMENTE no conteúdo acima.
+
+A geração deve ser CONTROLADA pela LOCALIDADE-ALVO.
+
+==============================
+1) VALIDAÇÃO (OBRIGATÓRIA)
+==============================
+
+- Verifique se a LOCALIDADE-ALVO aparece no texto
+- Se NÃO aparecer, retorne:
+
+{{"data": []}}
+
+- Verifique quais tópicos realmente aparecem no texto
+
+Defina internamente:
+- TOPICOS_VALIDOS = subconjunto de TÓPICOS que aparecem no texto
+
+==============================
+2) MODO DE GERAÇÃO
+==============================
+
+Se existem TOPICOS_VALIDOS, então
+
+    Gere EXATAMENTE 1 par por tópico
+
+    Para cada tópico T:
+        - A pergunta DEVE envolver a LOCALIDADE-ALVO
+        - A pergunta DEVE estar relacionada ao tópico T
+        - A pergunta deve focar em ação, finalidade ou serviço
+
+Se TOPICOS_VALIDOS é vazio, deve-se gerar EXATAMENTE 1 par
+
+    - A pergunta DEVE envolver a LOCALIDADE-ALVO em todo o conjunto de publicações
+    - A pergunta deve focar em ação, finalidade ou serviço presente no texto
+
+==============================
+3) REGRAS DAS PERGUNTAS
+==============================
+
+Todas as perguntas devem:
+
+- Conter explicitamente a LOCALIDADE-ALVO
+- Ser diretas e naturais
+- Devem cobrir aspectos em comum em várias publicações
+- Estar relacionadas à saúde pública
+- NÃO conter:
+    * "do contrato"
+    * "do termo"
+    * "do valor"
+    * qualquer referência nominal direta a documento
+
+- É PROIBIDO ELABORAR PERGUNTAS REDUNDANTES, como incluir "localidade de...". Por exemplo, "localidade de Ceilândia" ESTÁ ERRADO. Coloque apenas "Ceilândia".
+
+- NÃO misturar múltiplas localidades
+
+As perguntas devem focar em:
+
+- ações realizadas
+- serviços prestados
+- aquisições
+- finalidades institucionais
+- atividades relacionadas à saúde pública
+
+3.1. EXEMPLOS DE PERGUNTAS VÁLIDAS
+
+- "Quais contratos abordam sobre os serviços hospitalares no DF?"
+- "Quais empresas estão prestando serviços para a UBS de Santa Maria?"
+- "Quais são as finalidades dos convênios associados à UBS da Asa Sul?"
+
+==============================
+4) RESPOSTAS
+==============================
+
+As respostas devem:
+- Ser naturais e completas
+- Conter referência explícita ao documento, variando-se a linguagem:
+  Ex:
+  "De acordo com os Contratos nº X, publicados nas Edições Y e Z do DODF, de [data] e [data], ..."
+  "... foi mencionado no Termo de Doação nº [X], publicado na Edição [Y] do DODF, de [data], ...",
+
+- Para múltiplas publicações:
+  → incluir TODAS as referências relevantes
+
+4.1. EXEMPLOS DE RESPOSTAS VÁLIDAS
+
+- Para a pergunta "Quais contratos mencionam o SIA?", a resposta VÁLIDA é: "Os contratos nº 13/2024 e nº 75/2025, publicados nas Edições 01 e 03 do DODF de 12/05/2024 e 01/03/2025, respectivamente mencionam o SIA como centro de aquisição de equipamentos para as UBSs."
+- Para a pergunta "Qual unidade de saúde foi beneficiada com a aquisição de um novo lote de vacinas?", a resposta VÁLIDA é: "A UBS 12 da região do Gama recebeu um lote de vacinas contra a febre amarela em virtude do Termo de Doação nº 38/2025, publicado na Edição 05 do DODF, de 22/11/2025."
+
+
+==============================
+5) PROIBIÇÕES
+==============================
+
+- Inventar localidades ou tópicos
+- Inventar tópicos ou entidades
+- Fazer perguntas genéricas ou vagas
+- Fazer perguntas cuja resposta não está no texto
+- Gerar respostas como "não há informação"
+- Usar linguagem vaga como:
+  - "o texto menciona"
+  - "os documentos indicam"
+
+==============================
+7) FORMATO DE SAÍDA
+==============================
+
+{{
+  "data": [
+    {{
+      "pergunta": "...",
+      "resposta": "..."
+    }}
+  ]
+}}
+
+Retorne APENAS o JSON.
+Sem explicações.
+Sem texto adicional.
+"""
+
+
+def pergunta_invalida_tipoB(pergunta):
+    p = pergunta.lower()
+
+    # ❌ padrão nominal dependente
+    if re.search(r"\b(do|da|dos|das)\s+(contrato|termo|preg[aã]o|ata|valor)\b", p):
+        return True
+
+    # ❌ também pega variações tipo "para o contrato"
+    if re.search(r"\b(para|no|na)\s+(o|a)\s+(contrato|termo|preg[aã]o|ata)\b", p):
+        return True
+
+    return False
+
+def pergunta_mal_formada(pergunta):
+    return (
+        pergunta.strip().endswith("?") is False or
+        len(pergunta.split()) < 6
     )
-
-    custo_val = (
-        CUSTO["val_input"] * PRECO_INPUT +
-        CUSTO["val_output"] * PRECO_OUTPUT
-    )
-
-    custo_total = custo_gen + custo_val
-
-    print("\n====== CUSTO ======")
-    print(f"Geração:")
-    print(f"  input tokens:  {CUSTO['gen_input']}")
-    print(f"  output tokens: {CUSTO['gen_output']}")
-    print(f"  custo:         ${custo_gen:.4f}")
-
-    print(f"\nValidação:")
-    print(f"  input tokens:  {CUSTO['val_input']}")
-    print(f"  output tokens: {CUSTO['val_output']}")
-    print(f"  custo:         ${custo_val:.4f}")
-
-    print(f"\nTOTAL: ${custo_total:.4f}")
-    print("===================\n")
 
 def carregar_json(caminho):
-    with caminho.open("r", encoding="utf-8") as f:
+    with open(caminho, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def validar_par(cliente, pergunta, resposta, contexto, modelo):
-    prompt = f"""
-        Verifique se a resposta está correta e totalmente suportada pelo texto.
 
-        Texto:
-        {contexto}
+def salvar_json(obj, caminho):
+    os.makedirs(os.path.dirname(caminho) or ".", exist_ok=True)
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2)
 
-        Pergunta:
-        {pergunta}
 
-        Resposta:
-        {resposta}
+def normalizar(texto):
+    texto = texto.lower()
+    texto = unicodedata.normalize("NFD", texto)
+    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    texto = re.sub(r"[^\w\s]", " ", texto)
+    return re.sub(r"\s+", " ", texto).strip()
 
-        Responda apenas:
-        CORRETA ou INCORRETA
-        """
+
+def sanitizar_texto(texto):
+    limpo = "".join(
+        c for c in texto
+        if c in ("\n", "\t") or not unicodedata.category(c).startswith("C")
+    )
+    limpo = re.sub(r"\n{3,}", "\n\n", limpo)
+    return re.sub(r" {2,}", " ", limpo).strip()
+
+
+def normalizar_item(item):
+    return {k.strip().lower().replace('"', ''): v for k, v in item.items()}
+
+
+def resposta_esta_no_texto(resposta, texto):
+    t = normalizar(texto)
+    r = normalizar(resposta)
+    tokens = [tok for tok in r.split() if len(tok) > 4]
+    if not tokens:
+        return False
+    matches = sum(1 for tok in tokens if tok in t)
+    return matches / len(tokens) >= 0.3
+
+
+def controlar_tpm(tokens_previstos):
+    global tokens_usados, janela_inicio
+    agora = time.time()
+    if agora - janela_inicio >= 60:
+        tokens_usados = 0
+        janela_inicio = agora
+    if tokens_usados + tokens_previstos > TPM_SOFT:
+        espera = 60 - (agora - janela_inicio)
+        if espera > 0:
+            print(f"[TPM WAIT] {espera:.2f}s")
+            time.sleep(espera)
+        tokens_usados = 0
+        janela_inicio = time.time()
+
+
+def validar_par(cliente, pergunta, resposta, contexto):
+    prompt = f"""Verifique se a resposta está correta e totalmente suportada pelo texto.
+
+Texto:
+{contexto}
+
+Pergunta:
+{pergunta}
+
+Resposta:
+{resposta}
+
+Responda apenas: CORRETA ou INCORRETA"""
 
     resp = cliente.chat.completions.create(
-        model=modelo,
+        model=MODELO,
         messages=[
             {"role": "system", "content": "Verifique se a resposta está correta com base no texto."},
             {"role": "user", "content": prompt},
         ],
         temperature=0,
-        max_tokens=10
+        max_tokens=10,
+    )
+    CUSTO["val_input"] += resp.usage.prompt_tokens
+    CUSTO["val_output"] += resp.usage.completion_tokens
+    return "CORRETA" in resp.choices[0].message.content.strip().upper()
+
+def montar_prompt_direct(tarefa, max_tokens_override=None):
+    max_tokens_doc = max_tokens_override or MAX_TOKENS_DOC_MULTI
+
+    docs = tarefa["publicacoes"]
+
+    if docs and "publicacoes" in docs[0]:
+        docs = [p for d in docs for p in d.get("publicacoes", [])]
+
+    if not docs:
+        return "", []
+
+    doc = docs[0]
+
+    localidades = set()
+    keywords = set()
+    docs_no_bloco = []
+    partes = []
+    tokens_acumulados = 0
+
+    header = (
+        f"[FONTE]\nEdição {doc.get('edicao')}, publicada em {doc.get('data')}, "
+        f"{doc.get('secao')}, {doc.get('referencia')}\n\n"
     )
 
-    usage = resp.usage
+    tokens_header = contar_tokens(header)
 
-    CUSTO["val_input"] += usage.prompt_tokens
-    CUSTO["val_output"] += usage.completion_tokens
-
-    conteudo = resp.choices[0].message.content.strip().upper()
-    return "CORRETA" in conteudo
-
-def salvar_json(obj, caminho):
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    with caminho.open("w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2)
-
-def resposta_esta_no_texto(resposta, texto):
-    t = normalizar(texto)
-    r = normalizar(resposta)
-
-    # heurística simples (baseline)
-    return any(token in t for token in r.split() if len(token) > 4)
-
-def sanitizar_texto(texto):
-
-    limpo = "".join(
-        c for c in texto
-        if c in ("\n", "\t") or (not unicodedata.category(c).startswith("C"))
+    tokens_disponiveis = min(
+        max_tokens_doc,
+        MAX_TOKENS_INPUT - tokens_acumulados - tokens_header
     )
-    limpo = re.sub(r"\n{3,}", "\n\n", limpo)
-    limpo = re.sub(r" {2,}", " ", limpo)
-    return limpo.strip()
 
+    if tokens_disponiveis > 0:
+        txt = truncar_tokens(doc.get("texto_completo", ""), tokens_disponiveis)
+        parte = header + txt
 
-def truncar_texto(texto, max_chars = 3_000):
-    texto = sanitizar_texto(texto)
-    if len(texto) <= max_chars:
-        return texto
-    return texto[:max_chars] + " [... texto truncado]"
+        partes.append(parte)
+        docs_no_bloco.append(doc)
+        tokens_acumulados += contar_tokens(parte)
 
+    for loc in (doc.get("localidades") or []):
+        localidades.add(loc)
 
-def calcular_max_chars_por_pub(n_pubs, budget_total = 12_000):
-    por_pub = budget_total // max(1, n_pubs)
-    return max(800, min(4_000, por_pub))
+    for loc in (doc.get("tipo_unidade") or []):
+        localidades.add(loc)
 
-def distribuir_proporcional(pesos, total):
+    for key in (doc.get("topicos") or []):
+        keywords.add(key)
 
-    n = len(pesos)
-    if n == 0:
-        return []
-    soma = sum(pesos)
-    if soma == 0:
-        base = [total // n] * n
-        resto = total - sum(base)
-        for i in range(resto):
-            base[i] += 1
-        return base
+    for key in (doc.get("programas") or []):
+        keywords.add(key)
 
-    fracs = [p / soma * total for p in pesos]
-    floors = [max(1, int(f)) for f in fracs]
-    diff = total - sum(floors)
+    n_pares = tarefa.get("n_pares", 1)
 
-    residuos = sorted(
-        range(n),
-        key=lambda i: fracs[i] - int(fracs[i]),
-        reverse=True,
+    prompt = USER_TEMPLATE_DIRECT.format(
+        contexto="\n\n".join(partes),
+        lista_loc=", ".join(sorted(localidades)) if localidades else "N/A",
+        topicos=", ".join(sorted(keywords)) if keywords else "N/A",
+        n_pares=n_pares
     )
-    for i in range(abs(diff)):
-        idx = residuos[i % n]
-        if diff > 0:
-            floors[idx] += 1
-        else:
-            floors[idx] = max(1, floors[idx] - 1)
 
-    return floors
+    return prompt, docs_no_bloco
 
 
-def planejar_tarefas(dados, pares_por_chamada):
-    tarefas = []
+def montar_prompt_multi(tarefa, max_tokens_override=None):
+    max_tokens_doc = max_tokens_override or MAX_TOKENS_DOC_MULTI
 
-    for doc in dados:
-        tarefas.append({
-            "secao": doc["secao"],
-            "data": doc["data"],
-            "publicacoes": [doc],
-            "n_pares": pares_por_chamada
-        })
+    entidade = tarefa.get("entidade")
+    topicos = tarefa.get("topicos", [])
+    docs = tarefa.get("publicacoes", [])
 
-    return tarefas
+    modo_topico = len(topicos) > 0
 
+    docs_no_bloco = []
+    partes = []
+    tokens_acumulados = 0
 
-def montar_prompt(tarefa, max_chars_override):
-    n_pubs = len(tarefa["publicacoes"])
-    max_chars = max_chars_override or calcular_max_chars_por_pub(n_pubs)
-
-    blocos = []
-    for i, pub in enumerate(tarefa["publicacoes"], 1):
-        blocos.append(
-            f"[Publicação {i}]\n"
-            f"Tipo: {pub['tipo_documento']}\n"
-            f"Número/Título: {pub.get('numero_documento', '')}\n"
-            f"Texto: {truncar_texto(pub['texto_completo'], max_chars)}"
+    for d in docs:
+        header = (
+            f"[FONTE]\nEdição {d.get('edicao')}, publicada em {d.get('data')}, "
+            f"{d.get('secao')}, {d.get('referencia')}\n\n"
         )
 
-    estilos_str = "\n".join(f"  {i+1}. {e}" for i, e in enumerate(ESTILOS))
+        tokens_header = contar_tokens(header)
 
-    return USER_TEMPLATE.format(
-        n_pubs=n_pubs,
-        secao=tarefa["secao"],
-        data=tarefa["data"],
-        edicao="N/A",
-        blocos="\n\n".join(blocos),
-        n_pares=tarefa["n_pares"],
-        estilos=estilos_str,
+        tokens_disponiveis = min(
+            max_tokens_doc,
+            MAX_TOKENS_INPUT - tokens_acumulados - tokens_header
+        )
+
+        if tokens_disponiveis <= 0:
+            break
+
+        txt = truncar_tokens(d.get("texto_completo", ""), tokens_disponiveis)
+
+        parte = header + txt
+        partes.append(parte)
+        docs_no_bloco.append(d)
+
+        tokens_acumulados += contar_tokens(parte)
+
+    prompt = USER_TEMPLATE_MULTI.format(
+        contexto="\n\n".join(partes),
+        lista_loc=entidade if entidade else "N/A",
+        topicos=", ".join(sorted(topicos)) if topicos else "N/A",
+        n_pares=len(topicos) if modo_topico else 1,
+        modo_topico="SIM" if modo_topico else "NAO"
     )
 
-def chamar_api(cliente, tarefa, modelo):
+    return prompt, docs_no_bloco
 
-    budget_steps = [None, 6000, 3000, 1500, 800]
+def construir_indice_localidades(dados_flat):
+    indice = defaultdict(lambda: {
+        "docs": [],
+        "topicos": set()
+    })
 
-    tentativa_global = 0
-    budget_idx = 0
+    for d in dados_flat:
+        localidades = d.get("localidades") or []
+        topicos = d.get("topicos") or []
 
-    while tentativa_global < MAX_RETRIES:
-        tentativa_global += 1
-        max_chars = budget_steps[min(budget_idx, len(budget_steps) - 1)]
+        for loc in localidades:
+            entry = indice[loc]
 
-        try:
-            prompt = montar_prompt(tarefa, max_chars_override=max_chars)
+            entry["docs"].append(d)
 
-            resp = cliente.chat.completions.create(
-                model=modelo,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.7,
-                max_tokens=1000,  # reduz custo
+            for t in topicos:
+                entry["topicos"].add(t)
+
+    return indice
+
+def construir_blocos_por_localidade(docs_multi, max_tokens_bloco, max_docs_por_bloco=None):
+    blocos = []
+
+    for grupo in docs_multi:
+        docs = grupo["publicacoes"]
+
+        bloco = []
+        tokens_bloco = 0
+
+        for d in docs:
+            header = (
+                f"Edição {d['edicao']} — {d['data_edicao']} — "
+                f"{d['secao']} — {d.get('referencia','')}\n"
             )
 
-            conteudo = resp.choices[0].message.content.strip()
+            t = contar_tokens(header + d.get("texto_completo", ""))
 
-            usage = resp.usage
+            if bloco and (
+                tokens_bloco + t > max_tokens_bloco or
+                (max_docs_por_bloco and len(bloco) >= max_docs_por_bloco)
+            ):
+                blocos.append({
+                    "entidade": grupo["entidade"],
+                    "topicos": grupo["topicos"],
+                    "docs": bloco
+                })
+                bloco = []
+                tokens_bloco = 0
 
-            CUSTO["gen_input"] += usage.prompt_tokens
-            CUSTO["gen_output"] += usage.completion_tokens
+            bloco.append(d)
+            tokens_bloco += t
 
-            # remove markdown
-            if "```" in conteudo:
-                linhas = [
-                    l for l in conteudo.splitlines()
-                    if not l.strip().startswith("```")
-                ]
-                conteudo = "\n".join(linhas).strip()
+        if bloco:
+            blocos.append({
+                "entidade": grupo["entidade"],
+                "topicos": grupo["topicos"],
+                "docs": bloco
+            })
 
-            # tenta extrair JSON
-            inicio = conteudo.find("[")
-            fim = conteudo.rfind("]")
-            if inicio == -1 or fim == -1:
-                raise ValueError("JSON não encontrado na resposta")
+    return blocos
 
-            conteudo = conteudo[inicio:fim + 1]
 
-            pares = json.loads(conteudo)
+def _textos_doc(d):
+    return normalizar(d.get("texto_completo", ""))
 
-            if not isinstance(pares, list):
-                raise ValueError("Resposta não é lista")
 
-            texto_base = " ".join(p["texto_completo"] for p in tarefa["publicacoes"])
+def _par_e_direto(pergunta, resposta, docs_no_bloco):
+    """Retorna True se a resposta está concentrada em apenas um dos docs do bloco."""
+    scores = []
+    for d in docs_no_bloco:
+        t = _textos_doc(d)
+        tokens_resp = [tok for tok in normalizar(resposta).split() if len(tok) > 4]
+        if not tokens_resp:
+            scores.append(0.0)
+            continue
+        matches = sum(1 for tok in tokens_resp if tok in t)
+        scores.append(matches / len(tokens_resp))
+    if not scores:
+        return False
+    melhor = max(scores)
+    scores_sig = [s for s in scores if s > 0.1]
+    return melhor >= 0.5 and len(scores_sig) == 1
 
-            resultado = []
+def extrair_pares(conteudo):
+    try:
+        parsed = json.loads(conteudo)
+    except Exception:
+        return []
 
-            for item in pares:
-                if not isinstance(item, dict):
-                    continue
+    if isinstance(parsed, dict):
+        # caso padrão esperado: {"data": [...]}
+        if "data" in parsed and isinstance(parsed["data"], list):
+            return parsed["data"]
 
-                if "pergunta" not in item or "resposta" not in item:
-                    continue
+        # fallback: dict direto com pergunta/resposta
+        if "pergunta" in parsed and "resposta" in parsed:
+            return [parsed]
 
-                pergunta = str(item["pergunta"]).strip()
-                resposta = str(item["resposta"]).strip()
+        # fallback genérico
+        for v in parsed.values():
+            if isinstance(v, list):
+                return v
 
-                if validar_par(cliente, pergunta, resposta, texto_base, modelo):
-                    resultado.append({
-                        "pergunta": pergunta,
-                        "resposta": resposta,
-                    })
+        return []
 
-            return resultado
-
-        except Exception as e:
-            # retry com backoff
-            time.sleep(BACKOFF_BASE ** tentativa_global)
+    if isinstance(parsed, list):
+        return parsed
 
     return []
 
+def chamar_api(cliente, tarefa, max_docs_por_bloco=None):
+    global tokens_usados
+
+    docs = tarefa.get("publicacoes", [])
+    if docs and "publicacoes" in docs[0]:
+        docs = [p for d in docs for p in d.get("publicacoes", [])]
+
+    if not docs:
+        return []
+
+    docs = sorted(docs, key=lambda d: d.get("data_edicao", ""))
+    resultado = []
+
+    entidade = tarefa.get("entidade")
+    topicos = tarefa.get("topicos", [])
+
+    max_tokens_bloco = MAX_TOKENS_INPUT // 2
+    budget_steps = [None, max_tokens_bloco // 2, max_tokens_bloco // 4, 1_000]
+
+    grupo = {
+        "entidade": tarefa["entidade"],
+        "topicos": tarefa.get("topicos", []),
+        "publicacoes": tarefa["publicacoes"]
+    }
+
+    for bloco_info in construir_blocos_por_localidade([grupo], max_tokens_bloco, max_docs_por_bloco):
+        bloco = bloco_info["docs"]
+
+        tarefa_bloco = {
+            **tarefa,
+            "publicacoes": bloco,
+            "entidade": bloco_info["entidade"],
+            "topicos": bloco_info["topicos"]
+        }
+        if not bloco:
+            continue
+
+        pares_candidatos = []
+
+        # 🔧 modo baseado na tarefa (não no tamanho)
+        modo_direct = not tarefa.get("multi", False)
+
+        for tentativa in range(MAX_RETRIES):
+            try:
+                max_tokens_doc = budget_steps[min(tentativa, len(budget_steps) - 1)]
+
+                if modo_direct:
+                    prompt, docs_no_bloco = montar_prompt_direct(tarefa_bloco, max_tokens_doc)
+                else:
+                    prompt, docs_no_bloco = montar_prompt_multi(tarefa_bloco, max_tokens_doc)
+
+                tokens_prompt = contar_tokens(prompt)
+                controlar_tpm(tokens_prompt + OUTPUT_RESERVADO)
+                time.sleep(random.uniform(0.3, 0.6))
+
+                resp = cliente.chat.completions.create(
+                    model=MODELO,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=OUTPUT_RESERVADO,
+                    response_format={"type": "json_object"},
+                )
+
+                if resp.usage:
+                    tokens_usados += resp.usage.prompt_tokens + resp.usage.completion_tokens
+                    CUSTO["gen_input"] += resp.usage.prompt_tokens
+                    CUSTO["gen_output"] += resp.usage.completion_tokens
+
+                pares_candidatos = extrair_pares(resp.choices[0].message.content.strip())
+
+                if isinstance(pares_candidatos, list) and pares_candidatos:
+                    break
+
+            except RateLimitError as e:
+                time.sleep(2.0)
+
+            except Exception as e:
+                print("[ERRO]", str(e))
+                time.sleep(BACKOFF_BASE ** tentativa)
+
+        if not pares_candidatos:
+            continue
+
+        texto_base = " ".join(d.get("texto_completo", "") for d in bloco)
+
+        texto_publicacao = "\n\n".join(
+            f"Edição {d.get('edicao')} — {d.get('data_edicao')} — {d.get('secao')} — {d.get('referencia','')}\n"
+            f"{d.get('texto_completo','')}"
+            for d in bloco
+        )
+
+        for item in pares_candidatos:
+            if not isinstance(item, dict):
+                continue
+
+            item = normalizar_item(item)
+
+            pergunta = str(item.get("question") or item.get("pergunta") or "").strip()
+            resposta = str(item.get("answer") or item.get("resposta") or "").strip()
+
+            if entidade:
+                p_norm = normalizar(pergunta)
+                if normalizar(entidade) not in p_norm:
+                    continue
+
+            if pergunta_invalida_tipoB(pergunta):
+                continue
+
+            if not pergunta or not resposta:
+                continue
+
+            if not resposta_esta_no_texto(resposta, texto_base):
+                continue
+
+            if not validar_par(cliente, pergunta, resposta, texto_base):
+                continue
+
+            resultado.append({
+                "pergunta": pergunta,
+                "resposta": resposta,
+                "texto_publicacao": texto_publicacao,
+            })
+
+        time.sleep(0.5)
+
+    return resultado
+
 def processar_tarefa(args):
-    idx, tarefa, cliente, modelo = args
-
-    pares = chamar_api(cliente, tarefa, modelo)
-
+    idx, tarefa, cliente, max_docs_por_bloco = args
+    pares = chamar_api(cliente, tarefa, max_docs_por_bloco)
     enriquecidos = [
         {
             "pergunta": p["pergunta"],
@@ -391,201 +754,209 @@ def processar_tarefa(args):
             "secao": tarefa["secao"],
             "fonte": tarefa["data"],
             "tipo_documento": tarefa["publicacoes"][0].get("tipo_documento", ""),
+            "texto_publicacao": p.get("texto_publicacao", ""),
         }
         for p in pares
     ]
-
     return idx, tarefa, enriquecidos
 
 
-def executar(dados, total_pares, modelo, pares_por_chamada,
-             max_workers, caminho_checkpoint, caminho_saida):
+def planejar_tarefas(dados, pares_por_chamada):
+    return [
+        {
+            "multi": True,
+            "entidade": doc.get("entidade"),
+            "secao": "MULTI",
+            "data": "MULTI",
+            "publicacoes": doc.get("publicacoes", []),
+            "n_pares": pares_por_chamada,
+        }
+        for doc in dados
+    ]
 
-    api_key = "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"#os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        print("[ERRO] Defina a variável de ambiente OPENAI_API_KEY.", file=sys.stderr)
-        sys.exit(1)
-
-    cliente = OpenAI(api_key=api_key)
+def executar(dados, total_pares, pares_por_chamada, caminho_checkpoint, caminho_saida, max_docs_por_bloco=None):
+    cliente = OpenAI(api_key=API_KEY)
 
     dataset = []
     tarefas_concluidas = set()
 
-    # checkpoint
-    if caminho_checkpoint and caminho_checkpoint.exists():
+    # 🔢 Contadores globais
+    total_gerados = 0
+    total_aceitos = 0
+
+    if caminho_checkpoint and os.path.exists(caminho_checkpoint):
         checkpoint = carregar_json(caminho_checkpoint)
         dataset = checkpoint.get("dataset", [])
         tarefas_concluidas = set(checkpoint.get("tarefas_concluidas", []))
-        print(f"Checkpoint carregado: {len(dataset)} pares já existentes.")
+        total_aceitos = len(dataset)
+        print(f"Checkpoint carregado: {total_aceitos} pares.")
 
-    # planejamento
     tarefas = planejar_tarefas(dados, pares_por_chamada)
-    print(f"Total de tarefas planejadas: {len(tarefas)}")
+    tarefas_pendentes = [(i, t) for i, t in enumerate(tarefas) if i not in tarefas_concluidas]
 
-    from collections import Counter
-    dist_sec = Counter(t["secao"] for t in tarefas)
-    dist_pares = Counter(t["secao"] for t in tarefas)
-
-    print("\nDistribuição planejada de pares por seção:")
-    for sec in sorted(dist_sec):
-        print(f"  {sec}: {dist_sec[sec]} tarefas")
-    print()
-
-    tarefas_pendentes = [
-        (i, t) for i, t in enumerate(tarefas)
-        if i not in tarefas_concluidas
-    ]
-
-    print(f"Tarefas pendentes: {len(tarefas_pendentes)}")
+    print(f"Total de tarefas: {len(tarefas)} | Pendentes: {len(tarefas_pendentes)}")
 
     concluidas = 0
-    total_tarefas = len(tarefas_pendentes)
 
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-
+    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, 2)) as pool:
         futuros = {
-            pool.submit(processar_tarefa, (i, t, cliente, modelo)): (i, t)
+            pool.submit(processar_tarefa, (i, t, cliente, max_docs_por_bloco)): (i, t)
             for i, t in tarefas_pendentes
         }
 
         for futuro in as_completed(futuros):
+            if total_aceitos >= total_pares:
+                print("\n[INFO] Limite de pares atingido. Encerrando...")
+                break
+
             try:
                 idx, tarefa, pares_enriq = futuro.result()
             except Exception as exc:
-                print(f"\n[ERRO inesperado] {exc}", file=sys.stderr)
+                print(f"[ERRO] {exc}", file=sys.stderr)
                 continue
 
-            dataset.extend(pares_enriq)
-            tarefas_concluidas.add(idx)
+            # 🔢 contabiliza TUDO que veio da API (antes de cortar)
+            gerados = len(pares_enriq)
+            total_gerados += gerados
+
+            aceitos = 0
+
+            if pares_enriq:
+                restante = total_pares - total_aceitos
+                if restante > 0:
+                    selecionados = pares_enriq[:restante]
+                    dataset.extend(selecionados)
+                    aceitos = len(selecionados)
+                    total_aceitos += aceitos
+                    tarefas_concluidas.add(idx)
+
             concluidas += 1
 
-            pct = (concluidas / total_tarefas * 100) if total_tarefas > 0 else 100
-
             print(
-                f"\r[{concluidas}/{total_tarefas}] {pct:.1f}% | "
-                f"Pares: {len(dataset)} | "
-                f"{tarefa['secao']} — {tarefa['data']} (+{len(pares_enriq)})",
+                f"\r[{concluidas}/{len(tarefas_pendentes)}] "
+                f"Gerados: {total_gerados} | "
+                f"Aceitos: {total_aceitos} | "
+                f"Tarefa(+{gerados}→{aceitos})",
                 end="",
                 flush=True,
             )
 
-            # checkpoint incremental
             if caminho_checkpoint and concluidas % 20 == 0:
                 salvar_json(
                     {
                         "dataset": dataset,
-                        "tarefas_concluidas": list(tarefas_concluidas)
+                        "tarefas_concluidas": list(tarefas_concluidas),
                     },
-                    caminho_checkpoint
+                    caminho_checkpoint,
                 )
+
+        for f in futuros:
+            f.cancel()
 
     print()
 
-    # checkpoint final
     if caminho_checkpoint:
         salvar_json(
             {
                 "dataset": dataset,
-                "tarefas_concluidas": list(tarefas_concluidas)
+                "tarefas_concluidas": list(tarefas_concluidas),
             },
-            caminho_checkpoint
+            caminho_checkpoint,
         )
 
-    # ajuste final
-    if len(dataset) > total_pares:
-        print(f"\n[INFO] {len(dataset)} pares gerados. Truncando para {total_pares}.")
-        dataset = dataset[:total_pares]
+    salvar_json(dataset[:total_pares], caminho_saida)
 
-    elif len(dataset) < total_pares:
-        print(
-            f"\n[AVISO] Apenas {len(dataset)} pares gerados (esperado: {total_pares}).",
-            file=sys.stderr,
-        )
+    preco_input = 0.00015 / 1000
+    preco_output = 0.0006 / 1000
 
-    salvar_json(dataset, caminho_saida)
+    custo_gen = CUSTO["gen_input"] * preco_input + CUSTO["gen_output"] * preco_output
+    custo_val = CUSTO["val_input"] * preco_input + CUSTO["val_output"] * preco_output
 
-    print(f"\nDataset salvo em: {caminho_saida.resolve()}")
-    print(f"Total de pares: {len(dataset)}")
-
-    imprimir_custo()
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Gera pares QA a partir do JSON consolidado do DODF via OpenAI.",
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
-    parser.add_argument(
-        "--entrada",
-        type=Path,
-        default=Path("resultado_saude2025.json"),
-        help="JSON de entrada (saída de processar_dodf.py).",
-    )
-    parser.add_argument(
-        "--saida",
-        type=Path,
-        default=Path("dataset_qa_dodf.json"),
-        help="Arquivo JSON de saída com os pares QA.",
-    )
-    parser.add_argument(
-        "--total",
-        type=int,
-        default=TOTAL_PARES,
-        help=f"Total de pares a gerar (padrão: {TOTAL_PARES}).",
-    )
-    parser.add_argument(
-        "--modelo",
-        type=str,
-        default=MODELO_PADRAO,
-        help=f"Modelo OpenAI a usar (padrão: {MODELO_PADRAO}).",
-    )
-    parser.add_argument(
-        "--pares-por-chamada",
-        type=int,
-        default=PARES_POR_CHAMADA,
-        dest="pares_por_chamada",
-        help=f"Pares solicitados por chamada à API (padrão: {PARES_POR_CHAMADA}).",
-    )
-    parser.add_argument(
-        "--max-workers",
-        type=int,
-        default=MAX_WORKERS,
-        dest="max_workers",
-        help=f"Chamadas paralelas à API (padrão: {MAX_WORKERS}).",
-    )
-    parser.add_argument(
-        "--checkpoint",
-        type=Path,
-        default=None,
-        help="Arquivo de checkpoint para retomar em caso de interrupção.",
-    )
-    args = parser.parse_args()
-
-    if not args.entrada.exists():
-        print(f"[ERRO] Arquivo de entrada não encontrado: {args.entrada}", file=sys.stderr)
-        sys.exit(1)
-
-    dados = carregar_json(args.entrada)
+    print(f"\nDataset salvo: {caminho_saida}")
+    print(f"Pares aceitos: {total_aceitos}")
+    print(f"Pares gerados (antes de filtro): {total_gerados}")
+    print(f"Custo geração: ${custo_gen:.4f} | Validação: ${custo_val:.4f} | Total: ${custo_gen + custo_val:.4f}")
 
 
-    limite = datetime(2025, 8, 1)
-
-    dados = [
-        doc for doc in dados
-        if "data" in doc and datetime.fromisoformat(doc["data"]) >= limite
-    ]
-
-    print(f"Dados carregados: {len(dados)} dia(s).")
-
-    executar(
-        dados=dados,
-        total_pares=args.total,
-        modelo=args.modelo,
-        pares_por_chamada=args.pares_por_chamada,
-        max_workers=args.max_workers,
-        caminho_checkpoint=args.checkpoint,
-        caminho_saida=args.saida,
-    )
+def flatten_dados(dados):
+    if isinstance(dados, list):
+        return dados
+    return [doc for info in dados.values() for doc in info.get("publicacoes", [])]
 
 
-if __name__ == "__main__":
-    main()
+def construir_indice_unidades(dados_flat):
+    indice = defaultdict(list)
+    for doc in dados_flat:
+        for loc in (doc.get("localidades") or []):
+            indice[normalizar(loc)].append(doc.get("id"))
+    return dict(indice)
+
+
+def construir_indice_localidades(dados_flat):
+    indice = defaultdict(lambda: {
+        "docs": [],
+        "topicos": set()
+    })
+
+    for d in dados_flat:
+        localidades = d.get("localidades") or []
+        topicos = d.get("topicos") or []
+
+        for loc in localidades:
+            entry = indice[loc]
+
+            entry["docs"].append(d)
+
+            for t in topicos:
+                entry["topicos"].add(t)
+
+    return indice
+
+
+dados = carregar_json("data/corpus_dodf_2025.json")
+dados_flat = flatten_dados(dados)
+indice = construir_indice_localidades(dados_flat)
+
+docs_multi = []
+for loc, data in indice.items():
+    if len(data["docs"]) < 2:
+        continue
+
+    docs_multi.append({
+        "id": f"multi_{loc}",
+        "entidade": loc,
+        "topicos": list(data["topicos"]),
+        "multi": True,
+        "publicacoes": data["docs"]
+    })
+
+print(f"Total entidades: {len(indice)}")
+print(f"Entidades multi: {len([k for k, v in indice.items() if len(v) >= 2])}")
+print(f"Budget input disponível: {MAX_TOKENS_INPUT:,} tokens")
+
+#executar(
+#    dados=docs_multi,
+#    total_pares=1000,
+#    pares_por_chamada=2,
+#    caminho_checkpoint="checkpoint_qa_single.json",
+#    caminho_saida="data/dataset_qa_single.json",
+#    max_docs_por_bloco=1
+#)
+
+executar(
+    dados=docs_multi,
+    total_pares=1000,
+    pares_por_chamada=2,
+    caminho_checkpoint="checkpoint_qa_multi5.json",
+    caminho_saida="data/dataset_qa_multi5.json",
+    max_docs_por_bloco=5
+)
+
+executar(
+    dados=docs_multi,
+    total_pares=100,
+    pares_por_chamada=2,
+    caminho_checkpoint="checkpoint_qa_multi10.json",
+    caminho_saida="data/dataset_qa_multi10.json",
+    max_docs_por_bloco=5
+)

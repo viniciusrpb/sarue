@@ -1,0 +1,50 @@
+
+\begin{table*}[ht]
+\centering
+\scriptsize
+\begin{tabular}{lllccccc}
+\toprule
+RAG & LLM & Judge & Rel & Corr & Faith & Recall & Precision \\
+\midrule
+
+vanilla & llama3 & llama3 & 0.0000 & 0.4679 & 0.1500 & 0.6000 & 0.4857 \\
+vanilla & llama3 & gemma & 0.0000 & 0.1844 & 0.4250 & 0.4500 & 0.1894 \\
+vanilla & llama3 & qwen & 0.0000 & 0.1679 & 0.6111 & 0.0250 & 0.3783 \\
+vanilla & llama3 & gpt & 0.0000 & 0.2228 & 0.7767 & 0.2833 & 0.3262 \\
+vanilla & qwen & llama3 & 0.0000 & 0.4520 & 0.4250 & 0.6000 & 0.4857 \\
+vanilla & qwen & gemma & 0.1701 & 0.3825 & 0.8550 & 0.4500 & 0.1894 \\
+vanilla & qwen & qwen & 0.2791 & 0.2882 & 0.5944 & 0.0250 & 0.3783 \\
+vanilla & qwen & gpt & 0.3851 & 0.2929 & 0.7145 & 0.1833 & 0.3250 \\
+vanilla & gemma & llama3 & 0.1912 & 0.4793 & 0.2583 & 0.6000 & 0.4857 \\
+vanilla & gemma & gemma & 0.1433 & 0.2534 & 0.4167 & 0.4500 & 0.1894 \\
+vanilla & gemma & qwen & 0.1434 & 0.0791 & 0.5648 & 0.0250 & 0.3783 \\
+vanilla & gemma & gpt & 0.1901 & 0.2312 & 0.2971 & 0.2333 & 0.3333 \\
+hybrid & llama3 & llama3 & 0.0000 & 0.5020 & 0.1583 & 0.4167 & \textbf{0.6385} \\
+hybrid & llama3 & gemma & 0.0000 & 0.2092 & 0.5933 & 0.7500 & 0.2267 \\
+hybrid & llama3 & qwen & 0.0000 & 0.1751 & 0.8229 & 0.1250 & 0.4525 \\
+hybrid & llama3 & gpt & 0.0000 & 0.2584 & 0.7433 & 0.2667 & 0.3108 \\
+hybrid & qwen & llama3 & 0.1459 & \textbf{0.5088} & 0.5283 & 0.4167 & \textbf{0.6385} \\
+hybrid & qwen & gemma & 0.2216 & 0.4242 & \textbf{0.8850} & 0.7500 & 0.2267 \\
+hybrid & qwen & qwen & 0.4265 & 0.3404 & 0.7100 & 0.2250 & 0.4525 \\
+hybrid & qwen & gpt & \textbf{0.5684} & 0.3301 & 0.8118 & 0.2667 & 0.3817 \\
+hybrid & gemma & llama3 & 0.2570 & 0.4752 & 0.4383 & 0.4167 & \textbf{0.6385} \\
+hybrid & gemma & gemma & 0.2712 & 0.3436 & 0.5167 & 0.7500 & 0.2267 \\
+hybrid & gemma & qwen & 0.2634 & 0.1217 & 0.5648 & 0.2250 & 0.4525 \\
+hybrid & gemma & gpt & 0.3703 & 0.2987 & 0.8438 & 0.3167 & 0.3317 \\
+graph & llama3 & llama3 & 0.0410 & 0.4056 & 0.2100 & \textbf{0.8500} & 0.4787 \\
+graph & llama3 & gemma & 0.0372 & 0.2163 & 0.2000 & 0.7000 & 0.2250 \\
+graph & llama3 & qwen & 0.0721 & 0.1303 & 0.6071 & 0.0000 & 0.2700 \\
+graph & llama3 & gpt & 0.0000 & 0.1926 & 0.6707 & 0.4500 & 0.1250 \\
+graph & qwen & llama3 & 0.0489 & 0.4177 & 0.3167 & \textbf{0.8500} & 0.4787 \\
+graph & qwen & gemma & 0.0498 & 0.2228 & 0.6000 & 0.7000 & 0.2250 \\
+graph & qwen & qwen & 0.0736 & 0.2082 & 0.8021 & 0.0000 & 0.2700 \\
+graph & qwen & gpt & 0.0970 & 0.2103 & 0.8500 & 0.2333 & 0.1583 \\
+graph & gemma & llama3 & 0.0464 & 0.4462 & 0.1333 & \textbf{0.8500} & 0.4787 \\
+graph & gemma & gemma & 0.0438 & 0.1463 & 0.0800 & 0.7000 & 0.2250 \\
+graph & gemma & qwen & 0.0837 & 0.1252 & 0.3000 & 0.0000 & 0.2700 \\
+graph & gemma & gpt & 0.0904 & 0.1054 & 0.6833 & 0.2667 & 0.1250 \\
+
+\bottomrule
+\end{tabular}
+\caption{RAGAS metrics per judge (best values in bold)}
+\end{table*}

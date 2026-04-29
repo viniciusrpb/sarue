@@ -1,0 +1,23 @@
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\begin{tabular}{llccccc}
+\toprule
+RAG & LLM & METEOR & BERT & BLEU & ROUGE & BLEURT \\
+\midrule
+
+vanilla & llama3 & 0.1798 & 0.7029 & 6.6404 & 0.2352 & 0.1197 \\
+vanilla & qwen & 0.2039 & 0.7042 & 8.3281 & 0.2503 & 0.1476 \\
+vanilla & gemma & 0.0891 & 0.6649 & 2.7903 & 0.1427 & 0.1155 \\
+hybrid & llama3 & 0.1722 & 0.7017 & 7.0402 & 0.2327 & 0.1262 \\
+hybrid & qwen & \textbf{0.2171} & 0.7150 & \textbf{8.8627} & \textbf{0.2555} & 0.1359 \\
+hybrid & gemma & 0.1453 & 0.6839 & 6.1988 & 0.2043 & 0.1185 \\
+graph & llama3 & 0.1245 & 0.6866 & 4.3211 & 0.1937 & 0.1214 \\
+graph & qwen & 0.1610 & \textbf{0.7162} & 7.5178 & 0.2521 & \textbf{0.1535} \\
+graph & gemma & 0.0412 & 0.6472 & 0.7391 & 0.1116 & 0.0689 \\
+
+\bottomrule
+\end{tabular}
+\caption{Classic metrics (best values in bold)}
+\end{table}

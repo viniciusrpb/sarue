@@ -44,15 +44,23 @@ KEYWORDS = [
     "epidemiologia", "epidemia", "pandemia", "surto",
     "doenças tropicais", "dengue", "zika", "chikungunya", "malária",
     "vacinação", "imunização", "vacina","unidade básica de saúde","farmácia popular",
-    "estado de sítio", "estado de emergencia", "estado de calamidade",
-    "desastre natural", "enchente", "inundação","infraestrutura de saúde",
-    "deslizamento", "risco geológico",
+    "estado de sítio", "estado de emergencia", "estado de calamidade","infraestrutura de saúde",
     "atenção primária", "atenção básica", "saúde da família", "ubs"
 ]
 
 LOCALIDADES_DF = [
     "plano piloto",
     "asa sul",
+    "regiao sul",
+    "regiao norte",
+    "regiao centro oeste",
+    "regiao leste",
+    "regiao oeste",
+    "região sudoeste",
+    "regiao central",
+    "nucleo rural",
+    "capao seco",
+    "barreiro",
     "asa norte",
     "vila planalto",
     "noroeste",
@@ -62,6 +70,7 @@ LOCALIDADES_DF = [
     "sobradinho",
     "planaltina",
     "paranoa",
+    "setor habitacional",
     "nucleo bandeirante",
     "ceilandia",
     "guara",
@@ -69,10 +78,13 @@ LOCALIDADES_DF = [
     "samambaia",
     "santa maria",
     "cafe sem troco",
-    "padf",
+    "paddf",
+    "santa barbara",
+    "tororo",
     "sao sebastiao",
     "recanto das emas",
     "lago sul",
+    "ponte alta",
     "riacho fundo",
     "lago norte",
     "candangolandia",
@@ -103,7 +115,7 @@ TIPOS_UNIDADE = [
 ]
 
 PROGRAMAS = [
-    "farmacia popular", "saude da familia", "estratégia saude da familia", "saude bucal"
+    "farmacia popular", "saude da familia", "estrategia saude da familia", "saude bucal"
 ]
 
 
@@ -121,7 +133,13 @@ def extrair_localidades(texto):
 
 def extrair_unidades(texto):
     t = normalizar(texto)
-    return [u for u in TIPOS_UNIDADE if u in t]
+    encontrados = []
+
+    for u in TIPOS_UNIDADE:
+        if re.search(r"\b" + re.escape(u) + r"\b", t):
+            encontrados.append(u)
+
+    return encontrados
 
 
 def extrair_programas(texto):
@@ -134,7 +152,8 @@ def extrair_topicos(texto):
     encontrados = []
 
     for k in KEYWORDS_NORM:
-        if re.search(r"\b" + re.escape(k) + r"\b", t):
+        pattern = r"\b" + re.escape(k) + r"(s)?\b"
+        if re.search(pattern, t):
             encontrados.append(k)
 
     return encontrados
@@ -196,9 +215,6 @@ def extrair_data(caminho_arquivo, dados_json):
 
     return None
 
-
-
-
 def normalizar(texto):
     if not texto:
         return ""
@@ -224,16 +240,49 @@ def contem_palavra_chave(texto):
 
 ORGAO_PADRAO = "Secretaria de Estado de Saúde"
 CO_DEMANDANTE_ALVO = "782"
-def extrair_publicacoes_arquivo(caminho, orgao_alvo=ORGAO_PADRAO):
+
+def extrair_referencia(texto, titulo):
+    texto_base = f"{titulo} {texto}"
+
+    # ---------------------------------
+    # 1. tipo + nº + número/ano
+    # ---------------------------------
+    m = re.search(
+        r"(Contrato|Edital|Contratual|Resultado|Licitação|Aviso|Convênio|Preg[aã]o|Chamamento)[^\n]{0,40}?n[º°o]\s*[:\-]?\s*(\d+/\d{4})",
+        texto_base,
+        re.IGNORECASE
+    )
+
+    if m:
+        tipo = m.group(1)
+        numero = m.group(2)
+        return f"{tipo} nº {numero}"
+
+    # ---------------------------------
+    # 2. fallback: número isolado
+    # ---------------------------------
+    m = re.search(r"\b(\d+/\d{4})\b", texto_base)
+
+    if m:
+        return m.group(1)
+
+    # ---------------------------------
+    # 3. fallback: processo SEI
+    # ---------------------------------
+    m = re.search(r"\b(\d{5}-\d{8}/\d{4}-\d{2})\b", texto_base)
+
+    if m:
+        return f"Processo {m.group(1)}"
+
+    return ""
+
+def extrair_publicacoes_arquivo(caminho,identificador, orgao_alvo=ORGAO_PADRAO):
 
     with caminho.open("r", encoding="utf-8") as f:
         raw = json.load(f)
 
     data_str = extrair_data(caminho, raw)
 
-    # --------------------------------------------------
-    # 🔎 Detecta formato do JSON
-    # --------------------------------------------------
     if "json" in raw and isinstance(raw["json"], dict):
         diario_json = raw["json"]  # formato novo (API)
     elif "diario" in raw:
@@ -241,9 +290,6 @@ def extrair_publicacoes_arquivo(caminho, orgao_alvo=ORGAO_PADRAO):
     else:
         diario_json = raw
 
-    # --------------------------------------------------
-    # 🧾 Edição
-    # --------------------------------------------------
     edicao = diario_json.get("nu_numero") or diario_json.get("nu_jornal")
 
     try:
@@ -253,13 +299,10 @@ def extrair_publicacoes_arquivo(caminho, orgao_alvo=ORGAO_PADRAO):
 
     publicacoes = []
 
-    # ==================================================
-    # 🟢 CASO 1 — FORMATO ANTIGO (com INFO)
-    # ==================================================
     info = diario_json.get("INFO")
 
     if isinstance(info, dict):
-
+        itens = 1
         for nome_secao, orgaos in info.items():
             if not isinstance(orgaos, dict):
                 continue
@@ -293,41 +336,66 @@ def extrair_publicacoes_arquivo(caminho, orgao_alvo=ORGAO_PADRAO):
 
                     incluir = False
 
-                    # ✔ REGRA 1 — Seção I com palavras-chave
                     if secao_norm == "secao i":
-                        if contem_palavra_chave(texto_base):
+
+                        unidades = extrair_unidades(texto_base)
+                        programas = extrair_programas(texto_base)
+                        localidades = extrair_localidades(texto_base)
+                        topicos = extrair_topicos(texto_base)
+                        tem_keyword = len(topicos) > 0
+
+                        cond_unidade = len(unidades) > 0
+                        cond_programa_ou_keyword = (len(programas) > 0) or tem_keyword
+                        cond_localidade = len(localidades) > 0
+
+                        if (cond_unidade and cond_programa_ou_keyword) or (cond_programa_ou_keyword and cond_localidade):
                             incluir = True
 
-                    # ✔ REGRA 2 — Seção III com SES
                     elif secao_norm == "secao iii":
-                        if alvo_norm in orgao_norm:
+
+                        unidades = extrair_unidades(texto_base)
+                        localidades = extrair_localidades(texto_base)
+                        programas = extrair_programas(texto_base)
+                        topicos = extrair_topicos(texto_base)
+                        tem_keyword = len(topicos) > 0
+
+                        cond_unidade = len(unidades) > 0
+                        cond_localidade = len(localidades) > 0
+                        cond_programa_ou_keyword = (len(programas) > 0) or tem_keyword
+
+                        if cond_unidade or (cond_programa_ou_keyword and cond_localidade):
                             incluir = True
 
                     if not incluir:
                         continue
 
+                    referencia = extrair_referencia(texto, titulo)
+
                     publicacoes.append(
                         {
+                            "id": identificador + itens,
+                            "edicao": edicao,
+                            "data_edicao": data_str,
+                            "referencia": referencia,
+
                             "secao": nome_secao,
                             "tipo_documento": tipo,
                             "numero_documento": titulo,
                             "texto_completo": texto,
                             "data": data_str,
+
                             "topicos": extrair_topicos(texto_base),
                             "localidades": extrair_localidades(texto_base),
                             "tipo_unidade": extrair_unidades(texto_base),
                             "programas": extrair_programas(texto_base),
                         }
                     )
+                    itens +=1
 
-        return data_str, edicao, publicacoes
+        return data_str, edicao, publicacoes,itens
 
-    # ==================================================
-    # 🔴 CASO 2 — FORMATO NOVO (sem INFO)
-    # ==================================================
     print(f"[INFO] Formato alternativo detectado: {caminho.name}")
 
-    # tenta localizar estrutura alternativa
     demandantes = diario_json.get("lstHierarquia", {}).get("lstDemandantes", [])
 
     encontrou_ses = False
@@ -339,22 +407,7 @@ def extrair_publicacoes_arquivo(caminho, orgao_alvo=ORGAO_PADRAO):
         if "saude" in normalizar(nome) or co == "782":
             encontrou_ses = True
 
-            # ⚠️ neste formato normalmente NÃO há texto aqui
             print(f"[AVISO] publicação encontrada, mas texto ausente ({caminho.name})")
-
-            publicacoes.append(
-                {
-                    "secao": "Desconhecida",
-                    "tipo_documento": "",
-                    "numero_documento": f"Registro estrutural: {nome}",
-                    "texto_completo": "",
-                    "data": data_str,
-                    "topicos": [],
-                    "localidades": [],
-                    "tipo_unidade": [],
-                    "programas": [],
-                }
-            )
 
     if not encontrou_ses:
         print(f"[INFO] Nenhuma publicação da SES encontrada em {caminho.name}")
@@ -370,12 +423,13 @@ def processar_pasta(pasta, orgao_alvo = ORGAO_PADRAO,verbose = True):
 
     resultado = {}
 
+    identificador = 1
     for arq in arquivos:
         if verbose:
             print(f"Processando: {arq.name} …", end=" ", flush=True)
 
         try:
-            data_str, edicao, publicacoes = extrair_publicacoes_arquivo(arq, orgao_alvo)
+            data_str, edicao, publicacoes,nsamples = extrair_publicacoes_arquivo(arq,identificador, orgao_alvo)
         except Exception as exc:
             print(f"\n[ERRO] {arq.name}: {exc}", file=sys.stderr)
             continue
@@ -395,6 +449,7 @@ def processar_pasta(pasta, orgao_alvo = ORGAO_PADRAO,verbose = True):
 
         if verbose:
             print(f"{len(publicacoes)} publicação(ões) encontrada(s).")
+        identificador+=nsamples
 
     resultado = dict(sorted(resultado.items()))
     return resultado
@@ -415,7 +470,7 @@ def main():
     parser.add_argument(
         "--saida",
         type=Path,
-        default=Path("resultado_saude.json"),
+        default=Path("resultado_saude2025.json"),
         help="Arquivo JSON de saída (padrão: resultado_saude.json).",
     )
     parser.add_argument(

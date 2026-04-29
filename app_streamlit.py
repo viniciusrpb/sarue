@@ -26,27 +26,40 @@ OSM_CATEGORIES = {
     "ups": ("amenity", "clinic", "🏥", "blue"),
     "clinica": ("amenity", "clinic", "🏥", "blue"),
     "clínica": ("amenity", "clinic", "🏥", "blue"),
+    "clinic": ("amenity", "clinic", "🏥", "blue"),
     "farmacia": ("amenity", "pharmacy", "💊", "green"),
     "farmácia": ("amenity", "pharmacy", "💊", "green"),
+    "pharmacy": ("amenity", "pharmacy", "💊", "green"),
     "medico": ("amenity", "doctors", "👨‍⚕️", "cadetblue"),
     "médico": ("amenity", "doctors", "👨‍⚕️", "cadetblue"),
+    "doctor": ("amenity", "doctors", "👨‍⚕️", "cadetblue"),
     "dentista": ("amenity", "dentist", "🦷", "purple"),
+    "dentist": ("amenity", "dentist", "🦷", "purple"),
     "social": ("amenity", "social_facility", "🤝", "orange"),
     "cras": ("amenity", "social_facility", "🤝", "orange"),
     "creas": ("amenity", "social_facility", "🤝", "orange"),
+    "social facility": ("amenity", "social_facility", "🤝", "orange"),
     "escola": ("amenity", "school", "🏫", "darkblue"),
+    "school": ("amenity", "school", "🏫", "darkblue"),
     "creche": ("amenity", "kindergarten", "👶", "pink"),
+    "kindergarten": ("amenity", "kindergarten", "👶", "pink"),
     "saude": ("healthcare", "*", "➕", "red"),
-    "saúde": ("healthcare", "*","➕", "red"),
+    "saúde": ("healthcare", "*", "➕", "red"),
+    "health": ("healthcare", "*", "➕", "red"),
+    "healthcare": ("healthcare", "*", "➕", "red"),
     "academia": ("leisure", "fitness_centre", "🏋️", "darkgreen"),
+    "gym": ("leisure", "fitness_centre", "🏋️", "darkgreen"),
+    "fitness": ("leisure", "fitness_centre", "🏋️", "darkgreen"),
 }
 
 DF_BBOX = "-16.05,-48.28,-15.48,-47.30"
+
 
 def _norm(s):
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(c for c in s if not unicodedata.combining(c))
     return s.lower().strip()
+
 
 @st.cache_data(show_spinner=False)
 def load_geojson():
@@ -72,6 +85,7 @@ def get_subdist_list():
     _, _, by_subdist = load_geojson()
     return sorted(by_subdist.keys())
 
+
 @st.cache_data(show_spinner=False)
 def load_documents():
     base_dir  = os.path.join(os.path.dirname(__file__), "samples")
@@ -85,28 +99,28 @@ def load_documents():
         for _, row in df.iterrows():
             titulo  = str(row.get("title",   "")).strip()
             noticia = str(row.get("content", "")).strip()
-            text = f"{titulo}\n\n{noticia}".strip()
+            text    = f"{titulo}\n\n{noticia}".strip()
             if len(text) > 50:
-                documents.append( Document(page_content=text, metadata={"source": path}) )
+                documents.append(Document(page_content=text, metadata={"source": path}))
     return documents
+
 
 @st.cache_data
 def load_dengue_data():
     path = os.path.join(os.path.dirname(__file__), "database", "dados_dengue-16042026-ano_2026.csv")
     df = pd.read_csv(path)
-
     df.columns = [c.lower() for c in df.columns]
-
     return df
 
+
 def aggregate_dengue_by_sector(df):
-    # exemplo: coluna 'cd_setor' e 'casos'
     grouped = df.groupby("cd_setor")["casos"].sum().reset_index()
     return grouped
 
+
 def attach_dengue_to_geojson():
     gj, by_code, _ = load_geojson()
-    df = load_dengue_data()
+    df  = load_dengue_data()
     agg = aggregate_dengue_by_sector(df)
 
     dengue_map = dict(zip(agg["cd_setor"], agg["casos"]))
@@ -117,18 +131,18 @@ def attach_dengue_to_geojson():
 
     return gj
 
+
 @st.cache_resource(show_spinner=False)
 def setup_retriever():
-    docs = load_documents()
+    docs     = load_documents()
     splitter = CharacterTextSplitter(chunk_size=600, chunk_overlap=80)
-    chunks = splitter.split_documents(docs)
-    embeddings = HuggingFaceEmbeddings(model_name="juridics/bertimbau-base-portuguese-sts-scale") #vou tentar isso aqui, eh novo!!!
-
+    chunks   = splitter.split_documents(docs)
+    embeddings = HuggingFaceEmbeddings(model_name="juridics/bertimbau-base-portuguese-sts-scale")
     db = FAISS.from_documents(chunks, embedding=embeddings)
     return db.as_retriever(search_kwargs={"k": 5})
 
-def geocode(address):
 
+def geocode(address):
     params = {
         "q": f"{address}, Distrito Federal, Brasil",
         "format": "json",
@@ -145,7 +159,6 @@ def geocode(address):
             headers=HEADERS_OSM,
             timeout=10,
         )
-
         r.raise_for_status()
         results = r.json()
         return [
@@ -154,17 +167,16 @@ def geocode(address):
                 "lat": float(d["lat"]),
                 "lon": float(d["lon"]),
                 "osm_type": d.get("type", ""),
-
             }
             for d in results
         ], None
     except requests.exceptions.Timeout:
-        return [], "Timeout ao contatar Nominatim. Tente novamente."
+        return [], "Connection timeout. Please try again."
     except Exception as e:
         return [], str(e)
 
-def _overpass_query(key, value, area_name):
 
+def _overpass_query(key, value, area_name):
     if area_name:
         area_filter = f'area["name"~"{area_name}",i]["admin_level"~"8|9|10"]->.a;'
         if value == "*":
@@ -181,7 +193,6 @@ def _overpass_query(key, value, area_name):
 
 
 def search_poi(category, area_name):
-
     cat_norm = _norm(category)
 
     matched = None
@@ -198,7 +209,8 @@ def search_poi(category, area_name):
     query = _overpass_query(osm_key, osm_val, area_name)
 
     try:
-        r = requests.post("https://overpass-api.de/api/interpreter",
+        r = requests.post(
+            "https://overpass-api.de/api/interpreter",
             data={"data": query},
             headers=HEADERS_OSM,
             timeout=30,
@@ -206,7 +218,7 @@ def search_poi(category, area_name):
         r.raise_for_status()
         elements = r.json().get("elements", [])
     except requests.exceptions.Timeout:
-        return [], icon, color, "Timeout ao consultar a Overpass API."
+        return [], icon, color, "Connection timeout while querying Overpass API."
     except Exception as e:
         return [], icon, color, str(e)
 
@@ -236,10 +248,12 @@ def search_poi(category, area_name):
 
     return pois, icon, color, None
 
+
 def next_poly_color():
     return POLY_COLORS[len(st.session_state["drawn_layers"]) % len(POLY_COLORS)]
 
-def find_sectors(query_text: str):
+
+def find_sectors(query_text):
     _, by_code, by_subdist = load_geojson()
     q = _norm(query_text)
 
@@ -261,38 +275,60 @@ def find_sectors(query_text: str):
 
     return None, []
 
-def parse_command(user_text: str) -> dict:
+
+def detect_language(text):
+    resp = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Detect the language of the user message. "
+                    "Reply with only 'pt' if it is Portuguese, or 'en' if it is English or any other language."
+                ),
+            },
+            {"role": "user", "content": text},
+        ],
+        temperature=0.0,
+        max_tokens=5,
+    )
+    lang = resp.choices[0].message.content.strip().lower()
+    return "pt" if "pt" in lang else "en"
+
+
+def parse_command(user_text):
     subdist_str  = ", ".join(get_subdist_list())
     poi_cats_str = ", ".join(sorted({_norm(k) for k in OSM_CATEGORIES}))
 
-    system = f"""Você é o agente de controle de mapa do app Saruê (Fiocruz Brasília, DF).
-Classifique a mensagem e responda APENAS com JSON puro (sem markdown, sem explicação).
+    system = f"""You are the map control agent for the Saruê app (Fiocruz Brasília, DF, Brazil).
+Classify the user message and respond ONLY with pure JSON (no markdown, no explanation).
 
-Ações:
-- "draw": desenhar polígonos de setor censitário de uma RA no mapa
-- "remove": remover uma camada específica do mapa
-- "clear": remover TODAS as camadas do mapa
-- "poi": buscar pontos de interesse no OpenStreetMap (hospitais, farmácias, UBS etc.)
-- "geocode": localizar e marcar um endereço ou lugar específico no mapa
-- "none": pergunta de saúde pública ou assunto não relacionado ao mapa
-- "dengue": visualizar casos de dengue no mapa (mapa temático por setor)
+Actions:
+- "draw": draw census sector polygons for an Administrative Region (RA) on the map
+- "remove": remove a specific layer from the map
+- "clear": remove ALL layers from the map
+- "poi": search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
+- "geocode": locate and pin a specific address or place on the map
+- "dengue": display a dengue case choropleth map by census sector
+- "none": public health question or topic unrelated to map control
 
-RAs disponíveis (para draw/remove): {subdist_str}
-Categorias de POI disponíveis: {poi_cats_str}
+Available RAs (for draw/remove, Portuguese names): {subdist_str}
+Available POI categories: {poi_cats_str}
 
-Formato de resposta:
+Response format:
 {{
-  "action":   "draw"|"remove"|"clear"|"poi"|"geocode"|"none",
-  "target":   "<RA, código setor, endereço completo ou categoria>",
-  "area":     "<nome da RA onde buscar POIs, ou null>",
-  "category": "<categoria POI normalizada sem acentos, ou null>"
+  "action":   "draw"|"remove"|"clear"|"poi"|"geocode"|"dengue"|"none",
+  "target":   "<RA name, sector code, full address or category>",
+  "area":     "<RA/neighbourhood name for POI search, or null>",
+  "category": "<normalised POI category without accents, or null>"
 }}
 
-Regras:
-- Para "poi": "category" = tipo (ex: "hospital", "farmacia"); "area" = RA/bairro se mencionado, senão null.
-- Para "geocode": "target" = endereço ou nome do lugar completo.
-- Para "draw"/"remove": "target" = nome da RA (normalizado para a lista acima).
-- Se ambíguo entre "poi" e "draw", prefira "poi".
+Rules:
+- For "poi": "category" = type (e.g. "hospital", "farmacia", "pharmacy"); "area" = RA/neighbourhood if mentioned, else null.
+- For "geocode": "target" = full address or place name.
+- For "draw"/"remove": "target" = RA name (normalised to the list above).
+- If ambiguous between "poi" and "draw", prefer "poi".
+- The user may write in Portuguese or English; handle both.
 """
 
     resp = client.chat.completions.create(
@@ -312,16 +348,22 @@ Regras:
         return {"action": "none", "target": "", "area": None, "category": None}
 
 
-def execute_command(parsed):
-    action = parsed.get("action", "none")
-    target = parsed.get("target", "") or ""
-    area = parsed.get("area", None)
+def execute_command(parsed, lang="en"):
+    action   = parsed.get("action", "none")
+    target   = parsed.get("target", "") or ""
+    area     = parsed.get("area", None)
     category = parsed.get("category", None) or target
+
+    def msg(en, pt):
+        return pt if lang == "pt" else en
 
     if action == "clear":
         for store in ["drawn_layers", "poi_layers", "pin_layers"]:
             st.session_state[store] = {}
-        return "🗺️ Todas as camadas foram removidas do mapa."
+        return msg(
+            "🗺️ All layers have been removed from the map.",
+            "🗺️ Todas as camadas foram removidas do mapa.",
+        )
 
     if action == "remove":
         key_norm = _norm(target)
@@ -332,16 +374,29 @@ def execute_command(parsed):
                     del st.session_state[store][k]
                     removed.append(k)
         if removed:
-            return f"🗑️ Camada(s) removida(s): {', '.join(removed)}."
-        return f"⚠️ Nenhuma camada chamada **{target}** encontrada no mapa."
+            return msg(
+                f"🗑️ Layer(s) removed: {', '.join(removed)}.",
+                f"🗑️ Camada(s) removida(s): {', '.join(removed)}.",
+            )
+        return msg(
+            f"⚠️ No layer named **{target}** found on the map.",
+            f"⚠️ Nenhuma camada chamada **{target}** encontrada no mapa.",
+        )
 
     if action == "draw":
         label, features = find_sectors(target)
         if not features:
-            return (
-                f"⚠️ Não encontrei setores para **{target}**.\n"
-                "Tente o nome de uma RA (ex: Ceilândia, Taguatinga) "
-                "ou um código de setor com 15 dígitos."
+            return msg(
+                (
+                    f"⚠️ No sectors found for **{target}**.\n"
+                    "Try the name of an Administrative Region (e.g. Ceilândia, Taguatinga) "
+                    "or a 15-digit sector code."
+                ),
+                (
+                    f"⚠️ Não encontrei setores para **{target}**.\n"
+                    "Tente o nome de uma RA (ex: Ceilândia, Taguatinga) "
+                    "ou um código de setor com 15 dígitos."
+                ),
             )
         color = next_poly_color()
         st.session_state["drawn_layers"][label] = {"features": features, "color": color}
@@ -355,19 +410,37 @@ def execute_command(parsed):
             st.session_state["map_center"] = [
                 sum(lats) / len(lats), sum(lons) / len(lons)
             ]
-        return f"✅ **{label}** desenhado no mapa com {len(features)} setor(es) censitário(s)."
+        return msg(
+            f"✅ **{label}** drawn on the map with {len(features)} census sector(s).",
+            f"✅ **{label}** desenhado no mapa com {len(features)} setor(es) censitário(s).",
+        )
 
     if action == "poi":
-        with st.spinner(f"Consultando OpenStreetMap: **{category}**..."):
+        spinner_msg = (
+            f"Querying OpenStreetMap: **{category}**..."
+            if lang == "en"
+            else f"Consultando OpenStreetMap: **{category}**..."
+        )
+        with st.spinner(spinner_msg):
             pois, icon, color, err = search_poi(category, area)
 
         if err:
-            return f"⚠️ Erro ao consultar a Overpass API: `{err}`"
+            return msg(
+                f"⚠️ Error querying the Overpass API: `{err}`",
+                f"⚠️ Erro ao consultar a Overpass API: `{err}`",
+            )
         if not pois:
-            area_msg = f" em **{area}**" if area else " no DF"
-            return (
-                f"🔍 Nenhum resultado encontrado para **{category}**{area_msg}.\n"
-                "Tente outra categoria (ex: hospital, farmacia, clinica, ubs)."
+            area_msg_en = f" in **{area}**" if area else " in the Federal District"
+            area_msg_pt = f" em **{area}**" if area else " no DF"
+            return msg(
+                (
+                    f"🔍 No results found for **{category}**{area_msg_en}.\n"
+                    "Try another category (e.g. hospital, pharmacy, clinic, ubs)."
+                ),
+                (
+                    f"🔍 Nenhum resultado encontrado para **{category}**{area_msg_pt}.\n"
+                    "Tente outra categoria (ex: hospital, farmacia, clinica, ubs)."
+                ),
             )
 
         layer_label = f"{icon} {category.title()}"
@@ -383,29 +456,61 @@ def execute_command(parsed):
             sum(lats) / len(lats), sum(lons) / len(lons)
         ]
 
-        area_msg   = f" em **{area.title()}**" if area else " no DF"
-        lista_txt  = "\n".join(
+        area_msg_en = f" in **{area.title()}**" if area else " in the Federal District"
+        area_msg_pt = f" em **{area.title()}**" if area else " no DF"
+
+        lista_txt = "\n".join(
             f"- **{p['name']}**"
             + (f" — {p['address']}" if p["address"] else "")
             + (f" ☎ {p['phone']}"   if p["phone"]   else "")
             for p in pois[:10]
         )
-        sufixo = "\n\n*(exibindo os primeiros 10)*" if len(pois) > 10 else ""
-        return (
-            f"📍 **{len(pois)} resultado(s)** para **{category.title()}**{area_msg}:\n\n"
-            + lista_txt + sufixo
+        suffix_en = "\n\n*(showing first 10 results)*" if len(pois) > 10 else ""
+        suffix_pt = "\n\n*(exibindo os primeiros 10)*"  if len(pois) > 10 else ""
+
+        return msg(
+            (
+                f"📍 **{len(pois)} result(s)** for **{category.title()}**{area_msg_en}:\n\n"
+                + lista_txt + suffix_en
+            ),
+            (
+                f"📍 **{len(pois)} resultado(s)** para **{category.title()}**{area_msg_pt}:\n\n"
+                + lista_txt + suffix_pt
+            ),
+        )
+
+    if action == "dengue":
+        gj = attach_dengue_to_geojson()
+        st.session_state["dengue_layer"] = gj
+        return msg(
+            "🦟 Dengue case map loaded by census sector.",
+            "🦟 Mapa de casos de dengue carregado por setor censitário.",
         )
 
     if action == "geocode":
-        with st.spinner(f"Localizando **{target}**..."):
+        spinner_msg = (
+            f"Locating **{target}**..."
+            if lang == "en"
+            else f"Localizando **{target}**..."
+        )
+        with st.spinner(spinner_msg):
             results, err = geocode(target)
 
         if err:
-            return f"⚠️ Erro ao consultar o Nominatim: `{err}`"
+            return msg(
+                f"⚠️ Error querying Nominatim: `{err}`",
+                f"⚠️ Erro ao consultar o Nominatim: `{err}`",
+            )
         if not results:
-            return (
-                f"⚠️ Não foi possível localizar **{target}** no DF.\n"
-                "Tente incluir o nome da RA ou um endereço mais completo."
+            return msg(
+                (
+                    f"⚠️ Could not locate **{target}** in the Federal District.\n"
+                    "Try including the Administrative Region name or a more complete address."
+                ),
+                (
+                    f"⚠️ Não foi possível localizar **{target}** no DF.\n"
+                    "Tente incluir o nome da RA ou um endereço mais completo."
+                ),
             )
 
         best  = results[0]
@@ -418,23 +523,31 @@ def execute_command(parsed):
         st.session_state["map_center"] = [best["lat"], best["lon"]]
 
         short_name = best["display_name"].split(",")[0]
-        return (
-            f"📌 **{short_name}** localizado e marcado no mapa.\n"
-            f"Coordenadas: `{best['lat']:.5f}, {best['lon']:.5f}`"
+        return msg(
+            (
+                f"📌 **{short_name}** located and pinned on the map.\n"
+                f"Coordinates: `{best['lat']:.5f}, {best['lon']:.5f}`"
+            ),
+            (
+                f"📌 **{short_name}** localizado e marcado no mapa.\n"
+                f"Coordenadas: `{best['lat']:.5f}, {best['lon']:.5f}`"
+            ),
         )
 
     return None
+
 
 def get_color(value):
     if value > 100: return "#800026"
     elif value > 50: return "#BD0026"
     elif value > 20: return "#E31A1C"
     elif value > 10: return "#FC4E2A"
-    elif value > 5: return "#FD8D3C"
-    elif value > 0: return "#FEB24C"
-    else: return "#FFEDA0"
+    elif value > 5:  return "#FD8D3C"
+    elif value > 0:  return "#FEB24C"
+    else:            return "#FFEDA0"
 
-def answer_health_question(pergunta: str) -> str:
+
+def answer_health_question(pergunta, lang="en"):
     documentos = retriever.invoke(pergunta)
     MAX_CHARS  = 6000
     contexto   = ""
@@ -443,23 +556,37 @@ def answer_health_question(pergunta: str) -> str:
             break
         contexto += doc.page_content + "\n\n---\n\n"
 
-    prompt = f"""Você é um assistente especializado em saúde pública brasileira.
-                Responda exclusivamente com base nas informações fornecidas no contexto.
-                Se a resposta não estiver claramente presente, diga que não encontrou evidência suficiente.
+    lang_instruction = (
+        "Answer in English, even though the context is in Portuguese. "
+        "Translate any relevant information from the context as needed."
+        if lang == "en"
+        else "Responda em português."
+    )
 
-                Contexto:
-                {contexto}
+    prompt = f"""You are an assistant specialised in Brazilian public health.
+Answer exclusively based on the information provided in the context below.
+If the answer is not clearly present, say you could not find sufficient evidence.
+{lang_instruction}
 
-                Pergunta:
-                {pergunta}
+Context:
+{contexto}
 
-                Resposta:"""
+Question:
+{pergunta}
+
+Answer:"""
 
     resp = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {"role": "system",  "content": "Você responde de forma técnica, objetiva e em português."},
-            {"role": "user",    "content": prompt},
+            {
+                "role": "system",
+                "content": (
+                    "You are a technical, objective public-health assistant. "
+                    "Always reply in the same language as the user's question."
+                ),
+            },
+            {"role": "user", "content": prompt},
         ],
         temperature=0.3,
         max_tokens=600,
@@ -475,24 +602,20 @@ if "poi_layers" not in st.session_state:
 if "pin_layers" not in st.session_state:
     st.session_state["pin_layers"] = {}
 if "map_center" not in st.session_state:
-    st.session_state["map_center"]   = [-15.793889, -47.882778]
+    st.session_state["map_center"] = [-15.793889, -47.882778]
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
-if action == "dengue":
-
-    gj = attach_dengue_to_geojson()
-    st.session_state["dengue_layer"] = gj
-    return "🦟 Mapa de casos de dengue carregado por setor censitário."
 
 POLY_COLORS = [
     "#e74c3c", "#3498db", "#2ecc71", "#f39c12",
     "#9b59b6", "#1abc9c", "#e67e22", "#34495e",
 ]
 
+
 col_map, col_chat = st.columns([1, 1])
 
 with col_map:
-    st.subheader("Mapa do DF")
+    st.subheader("Map – Federal District (DF)")
 
     all_labels = (
         list(st.session_state["drawn_layers"].keys())
@@ -500,27 +623,29 @@ with col_map:
         + list(st.session_state["pin_layers"].keys())
     )
     if all_labels:
-        st.caption("**Camadas ativas:** " + " · ".join(all_labels))
-        if st.button("🗑️ Limpar todas as camadas"):
+        st.caption("**Active layers:** " + " · ".join(all_labels))
+        if st.button("🗑️ Clear all layers"):
             for store in ["drawn_layers", "poi_layers", "pin_layers"]:
                 st.session_state[store] = {}
             st.rerun()
 
-    if "dengue_layer" in st.session_state:
-        folium.Choropleth(
-            geo_data=st.session_state["dengue_layer"],
-            data=None,
-            columns=None,
-            key_on="feature.properties.CD_SETOR",
-            fill_color="YlOrRd",
-            fill_opacity=0.7,
-            line_opacity=0.2,
-            legend_name="Casos de Dengue",
-            highlight=True,
-        ).add_to(m)
-
     center = st.session_state["map_center"]
     m = folium.Map(location=center, zoom_start=12, tiles="CartoDB positron")
+
+    if "dengue_layer" in st.session_state:
+        folium.GeoJson(
+            st.session_state["dengue_layer"],
+            style_function=lambda feature: {
+                "fillColor": get_color(feature["properties"]["dengue_casos"]),
+                "color": "black",
+                "weight": 0.3,
+                "fillOpacity": 0.7,
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=["NM_SUBDIST", "dengue_casos"],
+                aliases=["Region:", "Cases:"],
+            ),
+        ).add_to(m)
 
     for label, layer in st.session_state["drawn_layers"].items():
         color   = layer["color"]
@@ -536,22 +661,8 @@ with col_map:
             },
             tooltip=folium.GeoJsonTooltip(
                 fields=["CD_SETOR", "NM_SUBDIST"],
-                aliases=["Setor:", "RA:"],
+                aliases=["Sector:", "Region:"],
             ),
-        ).add_to(m)
-
-        folium.GeoJson(
-            st.session_state["dengue_layer"],
-            style_function=lambda feature: {
-                "fillColor": get_color(feature["properties"]["dengue_casos"]),
-                "color": "black",
-                "weight": 0.3,
-                "fillOpacity": 0.7,
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=["NM_SUBDIST", "dengue_casos"],
-                aliases=["Região:", "Casos:"]
-            )
         ).add_to(m)
 
     for label, layer in st.session_state["poi_layers"].items():
@@ -592,19 +703,19 @@ with col_map:
 
 
 with col_chat:
-    st.subheader("Assistente")
+    st.subheader("Assistant")
 
-    for msg in st.session_state["chat_history"]:
-        role_label = "🧑 Você" if msg["role"] == "user" else "🤖 Agente"
-        with st.chat_message(msg["role"]):
-            st.markdown(f"**{role_label}:** {msg['content']}")
+    for msg_item in st.session_state["chat_history"]:
+        role_label = "🧑 You" if msg_item["role"] == "user" else "🤖 Agent"
+        with st.chat_message(msg_item["role"]):
+            st.markdown(f"**{role_label}:** {msg_item['content']}")
 
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input(
-            "Digite um comando ou pergunta:",
-            placeholder="Ex: Hospitais em Ceilândia | Onde fica a ESCS?",
+            "Type a command or question:",
+            placeholder="e.g. Hospitals in Ceilândia | Where is ESCS? | Dengue map",
         )
-        submitted = st.form_submit_button("Enviar ↩")
+        submitted = st.form_submit_button("Send ↩")
 
     if submitted and user_input.strip():
         user_msg = user_input.strip()
@@ -612,11 +723,12 @@ with col_chat:
             {"role": "user", "content": user_msg}
         )
 
-        with st.spinner("Processando..."):
+        with st.spinner("Processing..."):
+            lang     = detect_language(user_msg)
             parsed   = parse_command(user_msg)
-            response = execute_command(parsed)
+            response = execute_command(parsed, lang=lang)
             if response is None:
-                response = answer_health_question(user_msg)
+                response = answer_health_question(user_msg, lang=lang)
 
         st.session_state["chat_history"].append(
             {"role": "assistant", "content": response}
@@ -624,9 +736,9 @@ with col_chat:
         st.rerun()
 
     if st.session_state["chat_history"]:
-        if st.button("🧹 Limpar conversa"):
+        if st.button("🧹 Clear conversation"):
             st.session_state["chat_history"] = []
             st.rerun()
 
 st.markdown("---")
-st.markdown("© 2026 : Saruê - Fiocruz Brasília\nGrupo de Inteligência Computacional na Saúde (GICS)")
+st.markdown("© 2026 · Saruê – Fiocruz Brasília · Grupo de Inteligência Computacional na Saúde (GICS)")
