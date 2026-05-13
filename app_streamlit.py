@@ -213,7 +213,6 @@ def get_subdist_list():
 
 
 @st.cache_data(show_spinner=False)
-@st.cache_data(show_spinner=False)
 def load_documents():
     base_dir = os.path.join(os.path.dirname(__file__), "database/news")
     documents = []
@@ -478,7 +477,7 @@ def find_sectors(query_text):
 
 def detect_language(text):
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
         messages=[
             {
                 "role": "system",
@@ -533,7 +532,7 @@ Rules:
 """
 
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": system},
             {"role": "user",   "content": user_text},
@@ -749,65 +748,76 @@ def get_color(value):
     elif value > 0:  return "#FEB24C"
     else:            return "#FFEDA0"
 
-
 def answer_health_question(pergunta, lang="en"):
-    documentos = retriever.invoke(pergunta)
-    MAX_CHARS  = 6000
-    contexto   = ""
+    dense_retriever, bm25, chunks = setup_retriever()
+    entities = extract_entities(pergunta)
+
+    dense_docs = dense_retriever.invoke(pergunta)
+
+    query_terms = pergunta.lower().split()
+    for e in entities["locations"] + entities["organizations"] + entities["events"]:
+        query_terms += e.split()
+    bm25_scores = bm25.get_scores(query_terms)
+    top_bm25_idx = sorted(range(len(bm25_scores)),
+                          key=lambda i: bm25_scores[i], reverse=True)[:12]
+    bm25_docs = [chunks[i] for i in top_bm25_idx]
+
+    final_docs = _rerank(dense_docs, bm25_docs, entities, top_k=6)
+
+    MAX_CHARS = 6000
+    contexto  = ""
     localidades_encontradas = set()
 
-    for doc in documentos:
+    for doc in final_docs:
         if len(contexto) + len(doc.page_content) > MAX_CHARS:
             break
         contexto += doc.page_content + "\n\n---\n\n"
-        # coleta localidades dos metadados
-        locs = doc.metadata.get("localidades", "")
-        for loc in locs.split(";"):
+        for loc in doc.metadata.get("localidades", "").split(";"):
             loc = loc.strip()
             if loc:
                 localidades_encontradas.add(loc)
 
     lang_instruction = (
-        "Answer in English, even though the context is in Portuguese. "
-        "Translate any relevant information from the context as needed."
+        "Answer in English. Translate relevant Portuguese content as needed."
         if lang == "en"
         else "Responda em português."
     )
 
+    entity_hint = ""
+    if any(entities.values()):
+        flat = ", ".join(
+            entities["locations"] + entities["organizations"] + entities["events"]
+        )
+        entity_hint = f"Key entities detected in the query: {flat}\n"
+
     prompt = f"""You are an assistant specialised in Brazilian public health (Distrito Federal).
-    Answer based on the news articles provided in the context below.
-    {lang_instruction}
+Answer based on the news articles in the context below.
+{lang_instruction}
+{entity_hint}
+Rules:
+- Answer directly — never say "according to the context".
+- Cite the source as "Secretaria de Saúde do Distrito Federal (SES-DF)".
+- Include dates, times, and locations when present in the context.
+- If truly nothing is found, say so briefly.
 
-    Rules:
-    - Read ALL context blocks carefully before concluding something is not mentioned.
-    - Never say "according to the context" — answer directly and naturally.
-    - Cite the source as "Secretaria de Saúde do Distrito Federal (SES-DF)".
-    - If dates or times are mentioned, include them in the answer.
-    - Only say you could not find information if truly no context block is relevant.
+Context:
+{contexto}
 
-    Context:
-    {contexto}
+Question:
+{pergunta}
 
-    Question:
-    {pergunta}
-
-    Answer:"""
+Answer:"""
 
     resp = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {
-                "role": "system",
-                "content": "You are a technical, objective public-health assistant.",
-            },
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": "You are a concise, factual public-health assistant."},
+            {"role": "user",   "content": prompt},
         ],
-        temperature=0.3,
+        temperature=0.2,
         max_tokens=600,
     )
     return resp.choices[0].message.content, localidades_encontradas
-
-retriever = setup_retriever()
 
 if "drawn_layers" not in st.session_state:
     st.session_state["drawn_layers"] = {}
