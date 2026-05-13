@@ -1,0 +1,2061 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -48.1547874636619,
+              -15.822083655941936
+            ],
+            [
+              -48.15469087550358,
+              -15.821815093745657
+            ],
+            [
+              -48.15386398663609,
+              -15.822015337488498
+            ],
+            [
+              -48.15388754472348,
+              -15.82210721402933
+            ],
+            [
+              -48.153708503259296,
+              -15.822128416307985
+            ],
+            [
+              -48.153649608040816,
+              -15.822196734761423
+            ],
+            [
+              -48.152985269976334,
+              -15.822406401739222
+            ],
+            [
+              -48.152928730566586,
+              -15.8224770760014
+            ],
+            [
+              -48.15290752828793,
+              -15.822552461881058
+            ],
+            [
+              -48.15292166314037,
+              -15.822625491951976
+            ],
+            [
+              -48.152982914167595,
+              -15.822700877831634
+            ],
+            [
+              -48.153098348795815,
+              -15.822700877831634
+            ],
+            [
+              -48.15315488820556,
+              -15.82267967555298
+            ],
+            [
+              -48.1547874636619,
+              -15.822083655941936
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_001",
+        "num_setor": "DF_BRASILI_SR_001_CPRM",
+        "local": "RAXXXII - Sol Nascente e Pôr do Sol - SHSN, Chácara 74",
+        "data_setor": "09/08/2022",
+        "tipologia": "Enxurrada, Voçoroca",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 42,
+        "num_pess": 168,
+        "descricao": "Região do SHSN ocupado por moradias em ruas sem drenagem urbana já nas proximidades da área de crista de rebordo erosivo. Pela ausencia de infraestrutura urbana e drenagem adequada, os acessos tornam-se verdadeiros rios pelas enxurradas (5 e 6) em dia",
+        "obs_ocup": "Residencias em casas de alvenaria e apenas um comércio",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -48.13338068109034,
+              -15.841867076006277
+            ],
+            [
+              -48.133208712729015,
+              -15.84180975321917
+            ],
+            [
+              -48.133101497886464,
+              -15.841778968759428
+            ],
+            [
+              -48.13301232910652,
+              -15.84177684569324
+            ],
+            [
+              -48.13278728409047,
+              -15.84181930701702
+            ],
+            [
+              -48.132645038655795,
+              -15.842118659349692
+            ],
+            [
+              -48.13259833119963,
+              -15.842362811961445
+            ],
+            [
+              -48.13269068457886,
+              -15.842409519417608
+            ],
+            [
+              -48.13279577635522,
+              -15.842420134748552
+            ],
+            [
+              -48.13292316032657,
+              -15.842408457884511
+            ],
+            [
+              -48.13302719056984,
+              -15.842373427292392
+            ],
+            [
+              -48.13318960513331,
+              -15.842237551056286
+            ],
+            [
+              -48.133262850916836,
+              -15.842153689941814
+            ],
+            [
+              -48.13317474366999,
+              -15.842190843600124
+            ],
+            [
+              -48.133074959559096,
+              -15.84222693572534
+            ],
+            [
+              -48.132969867782734,
+              -15.842184474401556
+            ],
+            [
+              -48.132928467992045,
+              -15.842123967015166
+            ],
+            [
+              -48.132899806598495,
+              -15.842056028897112
+            ],
+            [
+              -48.13293483719061,
+              -15.841979598514303
+            ],
+            [
+              -48.133115297816694,
+              -15.841958367852412
+            ],
+            [
+              -48.13333291210108,
+              -15.84189786046602
+            ],
+            [
+              -48.13338068109034,
+              -15.841867076006277
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_002",
+        "num_setor": "DF_BRASILI_SR_002_CPRM",
+        "local": "RAXXXII - Sol Nascente e Pôr do Sol - SHSN, Chácara 36, Madureira",
+        "data_setor": "10/08/2022",
+        "tipologia": "Voçoroca, Deslizamento planar",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 10,
+        "num_pess": 40,
+        "descricao": "Região em área de crista no entorno do desague das águas pluviais do bairro formando uma grande vocoroca. Algumas moradias no local já haviam sido removidas com o local interditado, entretanto, houve reocupação e maior adensamento de casas, relativ",
+        "obs_ocup": "Moradias mistas de alvenaria e madeira, área reocupada.",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -48.052698067814866,
+              -15.805420038975358
+            ],
+            [
+              -48.05288467794117,
+              -15.805118395209547
+            ],
+            [
+              -48.05285144600087,
+              -15.805021255691743
+            ],
+            [
+              -48.052705736724164,
+              -15.804998248963843
+            ],
+            [
+              -48.05258047787226,
+              -15.804821864049936
+            ],
+            [
+              -48.05231973495605,
+              -15.804770737987935
+            ],
+            [
+              -48.05224304586305,
+              -15.80438473621982
+            ],
+            [
+              -48.052133124829744,
+              -15.804308047126817
+            ],
+            [
+              -48.05213823743595,
+              -15.804210907609013
+            ],
+            [
+              -48.05220981392275,
+              -15.804180231971813
+            ],
+            [
+              -48.052156131557645,
+              -15.80410609918191
+            ],
+            [
+              -48.05189027603524,
+              -15.804162337850112
+            ],
+            [
+              -48.051742010455435,
+              -15.804331053854717
+            ],
+            [
+              -48.05197463403754,
+              -15.804722168229032
+            ],
+            [
+              -48.05214846264835,
+              -15.804998248963843
+            ],
+            [
+              -48.05211778701115,
+              -15.805248766667653
+            ],
+            [
+              -48.05149660535782,
+              -15.805598980192364
+            ],
+            [
+              -48.051626976815925,
+              -15.805790702924872
+            ],
+            [
+              -48.052337629077755,
+              -15.805604092798566
+            ],
+            [
+              -48.05262649132806,
+              -15.805512065886962
+            ],
+            [
+              -48.052698067814866,
+              -15.805420038975358
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_003",
+        "num_setor": "DF_BRASILI_SR_003_CPRM",
+        "local": "RAXXX - Vicente Pires - SHVP, Chácara 229, Vila São José",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Enxurrada",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 37,
+        "num_pess": 148,
+        "descricao": "Drenagem incisiva com encosta declivosa com muitas ocupações na forma de corte de talude e aterro lançado, alguns elevados, presença de trincas e rachaduras em algumas casas (3, 4 e 5), inclusive, com histórico de alguns muros em aterros lançados j",
+        "obs_ocup": "Casas mistas de alvenaria e madeira, com rápida ocupação.",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.883230409464055,
+              -15.59191588840963
+            ],
+            [
+              -47.883276422919856,
+              -15.591848146377478
+            ],
+            [
+              -47.88318950861446,
+              -15.591719053070923
+            ],
+            [
+              -47.8830578590048,
+              -15.59162191355312
+            ],
+            [
+              -47.88288786484864,
+              -15.591619357250018
+            ],
+            [
+              -47.88290831527344,
+              -15.591813636285625
+            ],
+            [
+              -47.883230409464055,
+              -15.59191588840963
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_004",
+        "num_setor": "DF_BRASILI_SR_004_CPRM",
+        "local": "RAXXXI - Fercal - Quadra 4, Fercal I",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 5,
+        "num_pess": 20,
+        "descricao": "Moradias em meia encosta declivosa (3), construídas em cortes de talude e aterros lançados elevados (1 e 6). Já há indícios de instabilidade de solo na forma de muros embarrigados com risco de desabamento (2,4 e 5) e algumas trincas e rachaduras em",
+        "obs_ocup": "Moradias de alvenaria",
+        "sug_interv": "1 - Remoção temporária de famílias em dias de pluviosidade anômala;\n2 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n3 - Implantação de Plano de Contingência;\n4 - Realização de obras de drenagem urbana",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.88386309448133,
+              -15.592672554127263
+            ],
+            [
+              -47.883782570933676,
+              -15.59234023472425
+            ],
+            [
+              -47.88377362387283,
+              -15.592158737204143
+            ],
+            [
+              -47.883680318809674,
+              -15.592157459052594
+            ],
+            [
+              -47.88367776250657,
+              -15.592416923817252
+            ],
+            [
+              -47.88370971629532,
+              -15.592540904517607
+            ],
+            [
+              -47.883781292782125,
+              -15.592682779339663
+            ],
+            [
+              -47.88386309448133,
+              -15.592672554127263
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_005",
+        "num_setor": "DF_BRASILI_SR_005_CPRM",
+        "local": "RAXXXI - Fercal - Quadra 4, C181A, Fercal I",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Potencial",
+        "num_edif": 5,
+        "num_pess": 20,
+        "descricao": "Moradias de alta vulnerabilidade construtivas (5), na base de encosta declivosa. Como agravantes de risco, as casas estão muito próximas a cortes de talude elevados verticais (2, 3 e 6), algumas dessas moradias também estão sobre aterros lançados (1",
+        "obs_ocup": "Casas de alvenaria",
+        "sug_interv": "1 - Remoção temporária de famílias em dias de pluviosidade anômala;\n2 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n3 - Implantação de Plano de Contingência;\n4 - Realização de obras de drenagem urbana",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.86809467360481,
+              -15.603094815934446
+            ],
+            [
+              -47.86803843493661,
+              -15.602771443592284
+            ],
+            [
+              -47.868067832422255,
+              -15.602616787254728
+            ],
+            [
+              -47.86811895848426,
+              -15.602564383041177
+            ],
+            [
+              -47.86819948203191,
+              -15.60218221572771
+            ],
+            [
+              -47.868010315602504,
+              -15.602202985690399
+            ],
+            [
+              -47.86799369963236,
+              -15.602325688239203
+            ],
+            [
+              -47.867943851721904,
+              -15.602325688239203
+            ],
+            [
+              -47.8679412954188,
+              -15.602495682395359
+            ],
+            [
+              -47.8677802483235,
+              -15.602568537033711
+            ],
+            [
+              -47.86776874495955,
+              -15.602642669823615
+            ],
+            [
+              -47.8677597978987,
+              -15.602709133704218
+            ],
+            [
+              -47.86764859871384,
+              -15.602714246310418
+            ],
+            [
+              -47.86764348610764,
+              -15.60280371691892
+            ],
+            [
+              -47.86762814828904,
+              -15.602804995070471
+            ],
+            [
+              -47.86762431383439,
+              -15.602895743830524
+            ],
+            [
+              -47.867752128989395,
+              -15.602893187527425
+            ],
+            [
+              -47.86778408277815,
+              -15.603412117056745
+            ],
+            [
+              -47.86807038872536,
+              -15.603403169995895
+            ],
+            [
+              -47.86815730303076,
+              -15.603398057389693
+            ],
+            [
+              -47.86818797866796,
+              -15.60329963972034
+            ],
+            [
+              -47.86814068706061,
+              -15.603155208595185
+            ],
+            [
+              -47.86809467360481,
+              -15.603094815934446
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_006",
+        "num_setor": "DF_BRASILI_SR_006_CPRM",
+        "local": "RAXXXI - Fercal - Quadra 4, Rua das Palmeiras",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Potencial",
+        "num_edif": 14,
+        "num_pess": 56,
+        "descricao": "Moradias em encosta concentradas mais na área de crista (4) e base (6), de grande altura e declividade.  Muitas casas sobre aterros lançados de elevada altura, onde Já ocorreram pequenos desbarrancamento e quedas de muros (1) além desse indício de m",
+        "obs_ocup": "casas de alvenaria",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.8486342117804,
+              -15.571607771600434
+            ],
+            [
+              -47.848819543755155,
+              -15.571385373230726
+            ],
+            [
+              -47.84887961687801,
+              -15.57125372362107
+            ],
+            [
+              -47.84899337236596,
+              -15.571242220257119
+            ],
+            [
+              -47.84901510094231,
+              -15.571306127834623
+            ],
+            [
+              -47.84900359757836,
+              -15.571401989200876
+            ],
+            [
+              -47.849067505155865,
+              -15.571442890050477
+            ],
+            [
+              -47.849098180793064,
+              -15.571394320291576
+            ],
+            [
+              -47.84911607491477,
+              -15.571315074895473
+            ],
+            [
+              -47.849102015247716,
+              -15.571228160590069
+            ],
+            [
+              -47.84900615388146,
+              -15.571141246284666
+            ],
+            [
+              -47.848887285787306,
+              -15.571131021072265
+            ],
+            [
+              -47.848795258875704,
+              -15.571168087467218
+            ],
+            [
+              -47.8486955630548,
+              -15.571284399258271
+            ],
+            [
+              -47.84856774789979,
+              -15.571352141290424
+            ],
+            [
+              -47.848483389897495,
+              -15.571474843839228
+            ],
+            [
+              -47.8486342117804,
+              -15.571607771600434
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_007",
+        "num_setor": "DF_BRASILI_SR_007_CPRM",
+        "local": "RAXXXI - Fercal - Morro Queima Lençol e Capela Nossa Senhora Rainha da Paz",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Enxurrada",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 4,
+        "num_pess": 16,
+        "descricao": "Casas em meia encosta declivosa próximo a drenagem natural do morro Queima Lençol, local com incidências de eventos de enxurradas. Como agravantes de risco, as moradias possuem muitos cortes de talude (3, 5 e 6) e aterros lançados elevados (4), além",
+        "obs_ocup": "Casas de alvenaria",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -48.015626640081464,
+              -15.857960131785935
+            ],
+            [
+              -48.015773627509724,
+              -15.85781697881233
+            ],
+            [
+              -48.01550010307801,
+              -15.857567739260071
+            ],
+            [
+              -48.01553077871521,
+              -15.857429698892666
+            ],
+            [
+              -48.015368453468355,
+              -15.85728782407061
+            ],
+            [
+              -48.01506297524789,
+              -15.857519169501169
+            ],
+            [
+              -48.01524830722265,
+              -15.857694276263526
+            ],
+            [
+              -48.015348003043556,
+              -15.857722395597627
+            ],
+            [
+              -48.01543236104586,
+              -15.857769687204978
+            ],
+            [
+              -48.015626640081464,
+              -15.857960131785935
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_008",
+        "num_setor": "DF_BRASILI_SR_008_CPRM",
+        "local": "RAXXXIII - Arniqueira - Chácara 127B, Conjunto 5, Lote 8A, Condomínio Beija Flor",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Enxurrada",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 12,
+        "num_pess": 48,
+        "descricao": "Moradias construídas de alta vulnerabilidade em área de crista e base de encosta de alta declividade. Como agravantes de risco, muitas casas sobre aterros lançados (3), presença de fossas, e lançamento de águas servidas. Vale ressaltar, a presença",
+        "obs_ocup": "casas de alvenaria",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -48.015407636868304,
+              -15.861143697618152
+            ],
+            [
+              -48.015040679281825,
+              -15.86095482238982
+            ],
+            [
+              -48.01494534226181,
+              -15.860832503194327
+            ],
+            [
+              -48.01507665551579,
+              -15.860693994693548
+            ],
+            [
+              -48.01484640761839,
+              -15.860575273121453
+            ],
+            [
+              -48.01464494070817,
+              -15.860740763797708
+            ],
+            [
+              -48.01452621913608,
+              -15.860587864803342
+            ],
+            [
+              -48.01410349838695,
+              -15.860936834272835
+            ],
+            [
+              -48.01384806712578,
+              -15.861082538020407
+            ],
+            [
+              -48.014268989063204,
+              -15.861462087288771
+            ],
+            [
+              -48.01514680917203,
+              -15.862079079701328
+            ],
+            [
+              -48.01519177946449,
+              -15.862115055935297
+            ],
+            [
+              -48.01571163604533,
+              -15.862410061053836
+            ],
+            [
+              -48.015900511273664,
+              -15.862161825039456
+            ],
+            [
+              -48.015797979006855,
+              -15.862064689207742
+            ],
+            [
+              -48.01571523366873,
+              -15.861944168823948
+            ],
+            [
+              -48.01519177946449,
+              -15.861381140762344
+            ],
+            [
+              -48.015407636868304,
+              -15.861143697618152
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_009",
+        "num_setor": "DF_BRASILI_SR_009_CPRM",
+        "local": "RAXXXIII - Arniqueira - Chácara 126A, Conjunto 5, Lote 3, \"batcaverna\"",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Enxurrada, Ravina",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 61,
+        "num_pess": 244,
+        "descricao": "Drenagem incisiva com encosta de declivosa (6) com muitas ocupações na forma de corte de talude (1) e aterros lançados elevados (5) (concentradas principalmente na encosta do lado esquerdo ao Córrego Arniqueiras). Já há indícios de movimentações",
+        "obs_ocup": "Casas mistas, de alvenaria e madeira, com rápida ocupação.",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.96170443717395,
+              -15.871298943253182
+            ],
+            [
+              -47.96182135993435,
+              -15.871405073143388
+            ],
+            [
+              -47.961994045857395,
+              -15.871235984843736
+            ],
+            [
+              -47.961772792018486,
+              -15.870978754770864
+            ],
+            [
+              -47.96168644905696,
+              -15.87088161893915
+            ],
+            [
+              -47.96171343123244,
+              -15.870741311626672
+            ],
+            [
+              -47.96155513580298,
+              -15.870636980548165
+            ],
+            [
+              -47.9614130296788,
+              -15.870638779359863
+            ],
+            [
+              -47.96126552711954,
+              -15.870939180913497
+            ],
+            [
+              -47.96097052200099,
+              -15.87132232780526
+            ],
+            [
+              -47.96079603726625,
+              -15.87149321491661
+            ],
+            [
+              -47.96111622574857,
+              -15.871800811717039
+            ],
+            [
+              -47.96170443717395,
+              -15.871298943253182
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_010",
+        "num_setor": "DF_BRASILI_SR_010_CPRM",
+        "local": "RAVIII - Núcleo Bandeirante - Vila Cauhy",
+        "data_setor": "10/08/2022",
+        "tipologia": "Inundação, Enchente",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Ocorrido",
+        "num_edif": 44,
+        "num_pess": 176,
+        "descricao": "Várias casas localizadas em planície de inundação do Córrego Riacho Fundo (1). Como agravante, há a presença de casas mais baixas e ausencia de drenagem urbana. Eventos recorrentes de inundação ocorrem no local, chegando a 1,5m de lâmina d'águ",
+        "obs_ocup": "casas de alvenaria",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações e aterramentos irregulares;\n4 - Implantação de P",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.84230978642351,
+              -15.624417760386233
+            ],
+            [
+              -47.842687536880184,
+              -15.624248672086582
+            ],
+            [
+              -47.842565217684694,
+              -15.624022021812582
+            ],
+            [
+              -47.84208313614952,
+              -15.624243275651487
+            ],
+            [
+              -47.842020177740075,
+              -15.62438897939906
+            ],
+            [
+              -47.842000390811386,
+              -15.624577854627391
+            ],
+            [
+              -47.84230978642351,
+              -15.624417760386233
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_011",
+        "num_setor": "DF_BRASILI_SR_011_CPRM",
+        "local": "RAXXVI - Soradinho II - Condomínio Mirante da Serra, Quadra 01",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Enxurrada",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Potencial",
+        "num_edif": 16,
+        "num_pess": 64,
+        "descricao": "Moradias em área de crista de rebordo erosivo, construídas em sucessivos cortes de taludes e aterros lançados. Como agravantes da situação de risco, há a presença de canal para passagem de enxurrada sob edificio de três pavimentos (4), lançament",
+        "obs_ocup": "casas de alvenaria",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.84983869185591,
+              -15.618878337176366
+            ],
+            [
+              -47.85000732091844,
+              -15.619132068756423
+            ],
+            [
+              -47.85031778751018,
+              -15.619396832144309
+            ],
+            [
+              -47.85040761794536,
+              -15.619628500108709
+            ],
+            [
+              -47.85034930696112,
+              -15.619775065555574
+            ],
+            [
+              -47.85021062137699,
+              -15.619737242214448
+            ],
+            [
+              -47.85001204883608,
+              -15.619686811092945
+            ],
+            [
+              -47.849800868514784,
+              -15.619623772191067
+            ],
+            [
+              -47.849878091169586,
+              -15.61944253534817
+            ],
+            [
+              -47.85022480512991,
+              -15.619570189124472
+            ],
+            [
+              -47.85033827515329,
+              -15.619593828712677
+            ],
+            [
+              -47.85025317263575,
+              -15.619392104226668
+            ],
+            [
+              -47.85003253647918,
+              -15.619212443356316
+            ],
+            [
+              -47.8498954268676,
+              -15.619259722532725
+            ],
+            [
+              -47.849709462107064,
+              -15.619166740152455
+            ],
+            [
+              -47.84942421107606,
+              -15.619773489583027
+            ],
+            [
+              -47.8503351232082,
+              -15.619927934892628
+            ],
+            [
+              -47.85044544128648,
+              -15.619741970132088
+            ],
+            [
+              -47.850522663941284,
+              -15.619708874708603
+            ],
+            [
+              -47.85070390078418,
+              -15.619886959606408
+            ],
+            [
+              -47.85086780192906,
+              -15.619795553198685
+            ],
+            [
+              -47.85068498911362,
+              -15.61963322802635
+            ],
+            [
+              -47.85051951199619,
+              -15.619464598963827
+            ],
+            [
+              -47.85065819758032,
+              -15.619305425736586
+            ],
+            [
+              -47.85027523625141,
+              -15.619092669442749
+            ],
+            [
+              -47.850651893690134,
+              -15.61879796257647
+            ],
+            [
+              -47.85049744838053,
+              -15.618652973102153
+            ],
+            [
+              -47.850087695518326,
+              -15.618925616352774
+            ],
+            [
+              -47.84998840924787,
+              -15.618843665780332
+            ],
+            [
+              -47.85007981565559,
+              -15.618764867152986
+            ],
+            [
+              -47.84997895341259,
+              -15.618701828251108
+            ],
+            [
+              -47.84983869185591,
+              -15.618878337176366
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_012",
+        "num_setor": "DF_BRASILI_SR_012_CPRM",
+        "local": "RAXXVI - Sobradinho II - Vila Rabelo 2, Conjunto A",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Enxurrada",
+        "grau_vuln": "Alto",
+        "grau_risco": "Muito Alto",
+        "situacao": "Instalado",
+        "num_edif": 35,
+        "num_pess": 140,
+        "descricao": "Moradias em área de crista de rebordo erosivo, algumas sobre anfiteatro de cabeceiras de drenagem (4 e 5). Como agravantes da situação de risco há a presença de aterros elevados (1, 4 e 6), locais sujeitos à enxurradas, lançamentos de águas servi",
+        "obs_ocup": "casas mistas, de alvenaria e madeira.",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas (já com indícios de movimentação de solo ou eventos de deslizamento);\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalizaçã",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.843851886033605,
+              -15.6239173028854
+            ],
+            [
+              -47.843977963837354,
+              -15.62395827817162
+            ],
+            [
+              -47.8440867059431,
+              -15.624029196936233
+            ],
+            [
+              -47.84419387207629,
+              -15.624169458492911
+            ],
+            [
+              -47.84459416910321,
+              -15.623915726912854
+            ],
+            [
+              -47.844619384663964,
+              -15.623825896477678
+            ],
+            [
+              -47.84484947665582,
+              -15.623609988238748
+            ],
+            [
+              -47.84470291120895,
+              -15.623485486407539
+            ],
+            [
+              -47.84452167436605,
+              -15.623699818673924
+            ],
+            [
+              -47.84431679793495,
+              -15.623934638583417
+            ],
+            [
+              -47.84425060708798,
+              -15.623931486638323
+            ],
+            [
+              -47.844077250107816,
+              -15.623805408834569
+            ],
+            [
+              -47.84384243019832,
+              -15.623754977713066
+            ],
+            [
+              -47.84373841601022,
+              -15.62381486466985
+            ],
+            [
+              -47.843851886033605,
+              -15.6239173028854
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_013",
+        "num_setor": "DF_BRASILI_SR_013_CPRM",
+        "local": "RAXXIII - Sobradinho II - Cond. Mirante da Serra, Qd. 04 e Vila Rabelo 1, Cjs. 01 e 02",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Voçoroca",
+        "grau_vuln": "Alto",
+        "grau_risco": "Muito Alto",
+        "situacao": "Instalado",
+        "num_edif": 15,
+        "num_pess": 60,
+        "descricao": "Moradias de alvenaria em área de crista de rebordo erosivo (3). Presença de erosão com deslizamentos planares na crista. A situação é agravada pela ausencia de drenagem urbana adequada que se concentra em pontos de lançamento causando avanço da e",
+        "obs_ocup": "Casas de alvenaria",
+        "sug_interv": "1 - RemoÃ§Ã£o defintiva de moradias mais crÃ­ticas (masia proximas Ã  crista da erosÃ£o e deslizamentos);\n2 - RemoÃ§Ã£o temporÃ¡ria de famÃ­lias em dias de pluviosidade anÃ´mala;\n3 - ImplantaÃ§Ã£o de medidas de controle e fiscalizaÃ§Ã£o coibindo ocupaÃ§Ã",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.84547663095357,
+              -15.619624169936413
+            ],
+            [
+              -47.84535212912237,
+              -15.619658841332447
+            ],
+            [
+              -47.84544038358499,
+              -15.619944092363443
+            ],
+            [
+              -47.84534424925963,
+              -15.62000240334768
+            ],
+            [
+              -47.84511573324033,
+              -15.62007962600248
+            ],
+            [
+              -47.845145676718715,
+              -15.62017733630039
+            ],
+            [
+              -47.845388376490945,
+              -15.620114297398512
+            ],
+            [
+              -47.84547820692612,
+              -15.620397972456962
+            ],
+            [
+              -47.84565786779647,
+              -15.620774629895681
+            ],
+            [
+              -47.84573036253363,
+              -15.62090267766512
+            ],
+            [
+              -47.84579024949041,
+              -15.62097044448464
+            ],
+            [
+              -47.845867472145216,
+              -15.620916861418042
+            ],
+            [
+              -47.84575085017674,
+              -15.62061900260667
+            ],
+            [
+              -47.84578552157277,
+              -15.620447221599054
+            ],
+            [
+              -47.845659443769016,
+              -15.619911390933094
+            ],
+            [
+              -47.84562634834553,
+              -15.619823136470465
+            ],
+            [
+              -47.84547663095357,
+              -15.619624169936413
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_014",
+        "num_setor": "DF_BRASILI_SR_014_CPRM",
+        "local": "RAXXIII - Sobradinho II - Vila Rabelo 1, Conjunto 6, Quadra 1",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 16,
+        "num_pess": 64,
+        "descricao": "Moradias em area de crista de rebordo erosivo (6). Como agravante, muitas casas possuem lançamentos de águas servidas, presença de fossas (2 e 4), aterros lançados elevados e muitos cortes de taludes verticais (5). Como indícios de movimentação de",
+        "obs_ocup": "casas de alvenaria",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.84706096769715,
+              -15.621684937599376
+            ],
+            [
+              -47.84709091117554,
+              -15.621658146066078
+            ],
+            [
+              -47.84703732810895,
+              -15.621599835081842
+            ],
+            [
+              -47.847116126736296,
+              -15.621557283823073
+            ],
+            [
+              -47.847048359916776,
+              -15.621335071693954
+            ],
+            [
+              -47.846930161975756,
+              -15.621068732333521
+            ],
+            [
+              -47.84687815488171,
+              -15.620882767572983
+            ],
+            [
+              -47.846906522387556,
+              -15.620810272835824
+            ],
+            [
+              -47.84686554710133,
+              -15.620733050181023
+            ],
+            [
+              -47.846800932226905,
+              -15.620737778098665
+            ],
+            [
+              -47.84675207707795,
+              -15.62085912798478
+            ],
+            [
+              -47.846766260830876,
+              -15.62104351677277
+            ],
+            [
+              -47.84693804183849,
+              -15.621462725470257
+            ],
+            [
+              -47.84696956128943,
+              -15.621606138972028
+            ],
+            [
+              -47.84706096769715,
+              -15.621684937599376
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_015",
+        "num_setor": "DF_BRASILI_SR_015_CPRM",
+        "local": "RAXXIII Sobradinho II - Vila Rabelo 1, Conjunto 7, Quadra 1",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Enxurrada",
+        "grau_vuln": "Médio",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 12,
+        "num_pess": 48,
+        "descricao": "Casas de alvenaria e presença de edificio de três pavimentos em área de crista de rebordo erosivo (1). Como agravantes de risco, há a presença de muitas fossas, lançamentos de águas servidas (2 e 3), presença de muitos cortes de talude verticais",
+        "obs_ocup": "casas de alvenaris, presença de edificios de  três pavimentos.",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.73054435763231,
+              -15.64905802526132
+            ],
+            [
+              -47.73064049195767,
+              -15.649185679037622
+            ],
+            [
+              -47.73088791964754,
+              -15.649080088876978
+            ],
+            [
+              -47.73123305763532,
+              -15.648843692994937
+            ],
+            [
+              -47.73126300111372,
+              -15.64872864699901
+            ],
+            [
+              -47.731417446423315,
+              -15.6486309367011
+            ],
+            [
+              -47.73163650660734,
+              -15.648927219539924
+            ],
+            [
+              -47.7317357928778,
+              -15.649070633041696
+            ],
+            [
+              -47.73180828761495,
+              -15.649119488190651
+            ],
+            [
+              -47.73188393429721,
+              -15.649113184300463
+            ],
+            [
+              -47.73192175763833,
+              -15.649062753178962
+            ],
+            [
+              -47.73190599791287,
+              -15.649006018167272
+            ],
+            [
+              -47.73185556679136,
+              -15.649053297343679
+            ],
+            [
+              -47.73169166564648,
+              -15.648856300775313
+            ],
+            [
+              -47.73148678921538,
+              -15.648572625716863
+            ],
+            [
+              -47.73145526976444,
+              -15.64859468933252
+            ],
+            [
+              -47.73143005420369,
+              -15.648541106265924
+            ],
+            [
+              -47.73133707182342,
+              -15.648572625716863
+            ],
+            [
+              -47.7312960965372,
+              -15.648526922513001
+            ],
+            [
+              -47.73082330477312,
+              -15.648911459814455
+            ],
+            [
+              -47.73054435763231,
+              -15.64905802526132
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_016",
+        "num_setor": "DF_BRASILI_SR_016_CPRM",
+        "local": "RAVI - Planaltina - Núcleo Rural Corrego Arrozal, Chácara 1",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Voçoroca, Enxurrada",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 19,
+        "num_pess": 76,
+        "descricao": "Casas mistas, de alvenaria e madeira, em área de crista de rebordo erosivo. Como agravantes de risco, as moradias possuem fossas e lançamentos de águas servidas (4), além de estarem sobre aterros lançados elevados e muito próximas a cortes de talud",
+        "obs_ocup": "casas de alvenaria",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.65422936474928,
+              -15.681379694822189
+            ],
+            [
+              -47.65405614879933,
+              -15.681321560402662
+            ],
+            [
+              -47.65380375135489,
+              -15.681222518367505
+            ],
+            [
+              -47.653608862188946,
+              -15.681128268688889
+            ],
+            [
+              -47.6534467004357,
+              -15.681081024713537
+            ],
+            [
+              -47.653353530895565,
+              -15.681009777418138
+            ],
+            [
+              -47.653271931468204,
+              -15.680960817761719
+            ],
+            [
+              -47.65326921148729,
+              -15.681148496444656
+            ],
+            [
+              -47.65337257076195,
+              -15.681167536311042
+            ],
+            [
+              -47.653353530895565,
+              -15.681417774554959
+            ],
+            [
+              -47.65295913366331,
+              -15.68139601470766
+            ],
+            [
+              -47.65294825373966,
+              -15.681627213085193
+            ],
+            [
+              -47.65399816637174,
+              -15.681776812035361
+            ],
+            [
+              -47.65413144543644,
+              -15.681874731348197
+            ],
+            [
+              -47.65487128024454,
+              -15.681915531061879
+            ],
+            [
+              -47.65520583789673,
+              -15.681893771214583
+            ],
+            [
+              -47.65567095463271,
+              -15.68174961222624
+            ],
+            [
+              -47.655847753391996,
+              -15.681461294249551
+            ],
+            [
+              -47.6556464748045,
+              -15.681284495490264
+            ],
+            [
+              -47.65537175673237,
+              -15.681668012798875
+            ],
+            [
+              -47.65515687824031,
+              -15.681668012798875
+            ],
+            [
+              -47.65512695845028,
+              -15.681502093963234
+            ],
+            [
+              -47.654596562172415,
+              -15.681455854287728
+            ],
+            [
+              -47.65422936474928,
+              -15.681379694822189
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_017",
+        "num_setor": "DF_BRASILI_SR_017_CPRM",
+        "local": "RAVI - Planaltina - Vale do Amanhecer, CR85",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Enxurrada",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Potencial",
+        "num_edif": 74,
+        "num_pess": 296,
+        "descricao": "Casas de alta vulnerabilidade (3) na base de morrote com intenso adensamento e em rápido processo de ocupação. Como agravante de risco, as moradias contam com a presença de muitos cortes de taludes verticais e aterros lançados elevados, muito próxi",
+        "obs_ocup": "casas mistas, de alvenaria e madeira, ocupação rápida.",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.64436480572459,
+              -15.629005926928317
+            ],
+            [
+              -47.644030248072404,
+              -15.628981447100106
+            ],
+            [
+              -47.644008488225104,
+              -15.62915280589757
+            ],
+            [
+              -47.64373649013389,
+              -15.629155525878483
+            ],
+            [
+              -47.64364401078288,
+              -15.628946087348249
+            ],
+            [
+              -47.64334753286346,
+              -15.628927047481863
+            ],
+            [
+              -47.64328769328339,
+              -15.629212645477638
+            ],
+            [
+              -47.64330401316886,
+              -15.629345924542333
+            ],
+            [
+              -47.64350257177545,
+              -15.629604322728985
+            ],
+            [
+              -47.64354609147004,
+              -15.629604322728985
+            ],
+            [
+              -47.64362497091649,
+              -15.629296964885915
+            ],
+            [
+              -47.64371745026751,
+              -15.629310564790476
+            ],
+            [
+              -47.64413904730889,
+              -15.629827361163782
+            ],
+            [
+              -47.64431040610635,
+              -15.629865440896552
+            ],
+            [
+              -47.644389285552805,
+              -15.629375844332367
+            ],
+            [
+              -47.64436480572459,
+              -15.629005926928317
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_018",
+        "num_setor": "DF_BRASILI_SR_018_CPRM",
+        "local": "RAVI - Planaltina - Vila Buritis",
+        "data_setor": "10/08/2022",
+        "tipologia": "Enxurrada, Inundação",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 11,
+        "num_pess": 44,
+        "descricao": "Moradias sobre a planície de inundação do corrego do atoleiro (6) sendo atingidas por inundações e enxurradas de grande energia. Há relatos do último evento de enxurrada (1), com a destruição de muros e invasão de casas, lâmina d'água chegand",
+        "obs_ocup": "Casas mistas, de alvenaria e de madeira.",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas (em APP, mais baixas e na direção de enxurradas);\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.99568707845816,
+              -15.881445725229716
+            ],
+            [
+              -47.99574691803823,
+              -15.881339645974142
+            ],
+            [
+              -47.99568707845816,
+              -15.881296126279548
+            ],
+            [
+              -47.99572787817184,
+              -15.881225406775831
+            ],
+            [
+              -47.99583667740833,
+              -15.8812852463559
+            ],
+            [
+              -47.99591011689296,
+              -15.88119820696671
+            ],
+            [
+              -47.99591555685478,
+              -15.880958848646442
+            ],
+            [
+              -47.995833957427415,
+              -15.880934368818233
+            ],
+            [
+              -47.99540148046239,
+              -15.880518211738677
+            ],
+            [
+              -47.99490644393638,
+              -15.88085548937178
+            ],
+            [
+              -47.99523828160766,
+              -15.881179167100326
+            ],
+            [
+              -47.99540148046239,
+              -15.88103228813107
+            ],
+            [
+              -47.995434120233334,
+              -15.880996928379213
+            ],
+            [
+              -47.99567075857269,
+              -15.881157407253028
+            ],
+            [
+              -47.995559239355295,
+              -15.88135052589779
+            ],
+            [
+              -47.99568707845816,
+              -15.881445725229716
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_019",
+        "num_setor": "DF_BRASILI_SR_019_CPRM",
+        "local": "RAXVII - Riacho Fundo I - Placa da Mercedes, SPLM, Conjunto 7",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Enxurrada",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Ocorrido",
+        "num_edif": 19,
+        "num_pess": 76,
+        "descricao": "Casas ocupando desde a área de crista até a base de rebordo erosivo de alta declividade (4 e 5), em rápido processo de ocupação. Como agravantes de risco, há a presença de  fossas, lançamentos de águas servidas, ausência de drenagem urbana ou q",
+        "obs_ocup": "casas de alvenaria e presença de oficina veicular.",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -47.995991716320326,
+              -15.881562684408937
+            ],
+            [
+              -47.99655747235005,
+              -15.881853722366536
+            ],
+            [
+              -47.99675331097572,
+              -15.881905402003866
+            ],
+            [
+              -47.99705250887606,
+              -15.881840122461975
+            ],
+            [
+              -47.997076988704265,
+              -15.881685083549984
+            ],
+            [
+              -47.99682403047944,
+              -15.881666043683598
+            ],
+            [
+              -47.996707071300214,
+              -15.881649723798125
+            ],
+            [
+              -47.996462273018125,
+              -15.881576284313498
+            ],
+            [
+              -47.996418753323525,
+              -15.881524604676168
+            ],
+            [
+              -47.99640243343806,
+              -15.88135052589779
+            ],
+            [
+              -47.99622835465968,
+              -15.881233566718569
+            ],
+            [
+              -47.995991716320326,
+              -15.881562684408937
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_020",
+        "num_setor": "DF_BRASILI_SR_020_CPRM",
+        "local": "RAXVII - Riacho Fundo I - Placa da Mercedes, SPLM, Conjunto 5A",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 15,
+        "num_pess": 60,
+        "descricao": "Casas ocupando desde a área de crista até a base de rebordo erosivo de alta declividade. Como agravante de risco, há a presença de muitas intervenções na forma de corte de talude e aterros lançados elevados (1 e 2), começando adensamento entre as",
+        "obs_ocup": "casas de  alvenaria",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -48.01116884634487,
+              -15.894712235984088
+            ],
+            [
+              -48.01106548707021,
+              -15.89485367499152
+            ],
+            [
+              -48.01134836508507,
+              -15.895190952624624
+            ],
+            [
+              -48.0111742863067,
+              -15.895413991059419
+            ],
+            [
+              -48.01103284729926,
+              -15.89533783159388
+            ],
+            [
+              -48.010967567757376,
+              -15.895422151002156
+            ],
+            [
+              -48.011274925600446,
+              -15.895623429589655
+            ],
+            [
+              -48.011824361744694,
+              -15.896017826821915
+            ],
+            [
+              -48.01197668067578,
+              -15.89583286811989
+            ],
+            [
+              -48.01145172435973,
+              -15.89542759096398
+            ],
+            [
+              -48.01170740256548,
+              -15.895052233598106
+            ],
+            [
+              -48.01156596355804,
+              -15.894908074609761
+            ],
+            [
+              -48.01146260428338,
+              -15.894913514571586
+            ],
+            [
+              -48.01116884634487,
+              -15.894712235984088
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_021",
+        "num_setor": "DF_BRASILI_SR_021_CPRM",
+        "local": "RAXVII - Riacho Fundo I - Colônia Agrícola Sucupira, Chácaras 24 e 14",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar",
+        "grau_vuln": "Médio",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 21,
+        "num_pess": 84,
+        "descricao": "Casas em area de crista em rebordo erosivo de elevada altura e declividade. Como atenuantes de risco, houveram melhorias urbanísticas nas ruas com impermeabilização e drenagem urbana (2). Como agravantes de risco, há a presença de cortes verticais d",
+        "obs_ocup": "casas de alvenaria",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              -48.014853130137304,
+              -15.894630708183845
+            ],
+            [
+              -48.014752490843556,
+              -15.89457358858469
+            ],
+            [
+              -48.01449137267599,
+              -15.894391349863577
+            ],
+            [
+              -48.014012656035455,
+              -15.893994232650405
+            ],
+            [
+              -48.013901136818056,
+              -15.89410303188689
+            ],
+            [
+              -48.01398817620724,
+              -15.894198231218816
+            ],
+            [
+              -48.01411873529103,
+              -15.894358710092632
+            ],
+            [
+              -48.014156815023796,
+              -15.894494709138238
+            ],
+            [
+              -48.01372161807785,
+              -15.894976145759687
+            ],
+            [
+              -48.01427649418393,
+              -15.89555278171306
+            ],
+            [
+              -48.014423373153186,
+              -15.895441262495662
+            ],
+            [
+              -48.01434449370674,
+              -15.895242703889076
+            ],
+            [
+              -48.01417585489018,
+              -15.895106704843469
+            ],
+            [
+              -48.01428193414576,
+              -15.89499246564516
+            ],
+            [
+              -48.01448865269508,
+              -15.895150224538064
+            ],
+            [
+              -48.01458113204609,
+              -15.8950686251107
+            ],
+            [
+              -48.014815050404536,
+              -15.895125744709855
+            ],
+            [
+              -48.014997289125645,
+              -15.895014225492456
+            ],
+            [
+              -48.01499456914473,
+              -15.894899986294147
+            ],
+            [
+              -48.01485857009913,
+              -15.894796627019486
+            ],
+            [
+              -48.01492928960285,
+              -15.894687827783
+            ],
+            [
+              -48.014853130137304,
+              -15.894630708183845
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "properties": {
+        "setor": "SR_022",
+        "num_setor": "DF_BRASILI_SR_022_CPRM",
+        "local": "RAXVII - Riacho Fundo I - Colonia Agricola Sucupira, Chácara 22",
+        "data_setor": "10/08/2022",
+        "tipologia": "Deslizamento planar, Queda de blocos, Enxurrada",
+        "grau_vuln": "Alto",
+        "grau_risco": "Alto",
+        "situacao": "Instalado",
+        "num_edif": 38,
+        "num_pess": 152,
+        "descricao": "Moradias ocupando desde a área de crista até a drenagem na base de rebordo erosivo de elevada declividade (6). Como agravantes de risco, há a presença de muitos cortes de talude verticais (1, 2 e 4), de muitos aterros lançados elevados  (5), além d",
+        "obs_ocup": "casas de alvenaria, rápída ocupação.",
+        "sug_interv": "1 - Remoção defintiva de moradias mais críticas;\n2 - Remoção temporária de famílias em dias de pluviosidade anômala;\n3 - Implantação de medidas de controle e fiscalização coibindo ocupações irregulares;\n4 - Implantação de Plano de Conting",
+        "orgao_exec": "CPRM",
+        "projeto": "Setorização de Áreas em Alto e Muito Alto Risco a Movimentos de Massa, Enchentes e Inundações"
+      }
+    }
+  ]
+}
