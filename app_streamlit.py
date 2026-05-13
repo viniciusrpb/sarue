@@ -875,7 +875,7 @@ with col_map:
     if "queimada_layer" in st.session_state:
         folium.GeoJson(
             st.session_state["queimada_layer"],
-            name="Áreas Queimadas 2025",
+            name="Fires 2025",
             style_function=lambda feat: {
                 "fillColor":   QUEIMADA_COLORS.get(feat["properties"]["mes"], "#fdae61"),
                 "color": "#333", "weight": 0.5, "fillOpacity": 0.6,
@@ -897,7 +897,7 @@ with col_map:
             },
             tooltip=folium.GeoJsonTooltip(
                 fields=["CD_SETOR", "NM_SUBDIST"],
-                aliases=["Setor:", "Região:"],
+                aliases=["Sector:", "Region:"],
             ),
         ).add_to(m)
 
@@ -930,6 +930,73 @@ with col_map:
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
     st_folium(m, width=None, height=500, returned_objects=[])
 
+col_map, col_chat = st.columns([1, 1])
+
+# --- Chat primeiro (processa input e atualiza session_state) ---
+with col_chat:
+    st.subheader("Assistant")
+
+    for msg_item in st.session_state["chat_history"]:
+        role_label = "You" if msg_item["role"] == "user" else "Opossum"
+        with st.chat_message(msg_item["role"]):
+            st.markdown(f"**{role_label}:** {msg_item['content']}")
+
+    with st.form("chat_form", clear_on_submit=True):
+        user_input = st.text_input(
+            "Type a command or question:",
+            placeholder="e.g. Hospitals in Ceilândia | Burned areas | Geological risk | Dengue map",
+        )
+        submitted = st.form_submit_button("Send ↩")
+
+    if submitted and user_input.strip():
+        user_msg = user_input.strip()
+        st.session_state["chat_history"].append({"role": "user", "content": user_msg})
+
+        with st.spinner("Processing..."):
+            lang     = detect_language(user_msg)
+            parsed   = parse_command(user_msg)
+            response = execute_command(parsed, lang=lang)
+
+            if response is None:
+                response, localidades = answer_health_question(user_msg, lang=lang)
+                entities = extract_entities(user_msg)
+                entidades_loc = set(entities["locations"])
+                if entidades_loc:
+                    localidades = {
+                        loc for loc in localidades
+                        if any(e in _norm(loc) or _norm(loc) in e for e in entidades_loc)
+                    }
+                last_lats, last_lons = [], []
+                for loc in localidades:
+                    label, features = find_sectors(loc)
+                    if features:
+                        color = next_poly_color()
+                        st.session_state["drawn_layers"][label] = {
+                            "features": features, "color": color,
+                        }
+                        for feat in features:
+                            for ring in feat["geometry"]["coordinates"]:
+                                for lon, lat in ring:
+                                    last_lats.append(lat)
+                                    last_lons.append(lon)
+                if last_lats:
+                    st.session_state["map_center"] = [
+                        sum(last_lats) / len(last_lats),
+                        sum(last_lons) / len(last_lons),
+                    ]
+
+        st.session_state["chat_history"].append({"role": "assistant", "content": response})
+        # NÃO chama st.rerun() aqui — deixa o Streamlit re-renderizar naturalmente
+
+    if st.session_state["chat_history"]:
+        if st.button("🧹 Clear conversation"):
+            st.session_state["chat_history"] = []
+            st.rerun()
+
+# --- Mapa depois (já usa o session_state atualizado) ---
+with col_map:
+    st.subheader("Federal District (DF)")
+    ... # resto do código do mapa igual
 
 with col_chat:
     st.subheader("Assistant")
