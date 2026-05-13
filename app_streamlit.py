@@ -232,7 +232,6 @@ def get_dengue_color(value):
     return colors[-1]
 
 @st.cache_data(show_spinner=False, ttl=300)
-@st.cache_data(show_spinner=False, ttl=300)
 def extract_entities(text):
     resp = client.chat.completions.create(
         model="qwen/qwen3-32b",
@@ -384,7 +383,7 @@ Answer:"""
     )
     raw = resp.choices[0].message.content.strip()
     raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-    return raw, localidades_encontradas
+    return raw, localidades_encontradas, entities
 
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_area_bbox(area_name):
@@ -578,38 +577,46 @@ def parse_command(user_text):
     poi_cats_str = ", ".join(sorted({_norm(k) for k in OSM_CATEGORIES}))
 
     system = f"""You are the map control agent for the Opossum app (Fiocruz Brasília, DF, Brazil).
-        Classify the user message and respond ONLY with pure JSON (no markdown, no explanation).
+Classify the user message and respond ONLY with pure JSON (no markdown, no explanation).
 
-        Actions:
-        - "draw":     draw census sector polygons for an Administrative Region (RA) on the map
-        - "remove":   remove a specific layer from the map
-        - "clear":    remove ALL layers from the map
-        - "poi":      search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
-        - "geocode":  locate and pin a specific address or place on the map
-        - "dengue":   display a dengue case choropleth map by census sector
-        - "risco":    display geological risk areas on the map (CPRM data)
-        - "queimada": display burned areas on the map (2025 data)
-        - "none":     public health question or topic unrelated to map control
+Actions:
+- "draw":     draw census sector polygons for an Administrative Region (RA) on the map
+- "remove":   remove a specific layer from the map
+- "clear":    remove ALL layers from the map
+- "poi":      search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
+- "geocode":  locate and pin a specific address or place on the map
+- "dengue":   display a dengue case choropleth map by census sector
+- "risco":    display geological risk areas on the map (CPRM data).
+              Triggered by: "risk zones", "geological risk", "landslide", "risco geológico",
+              "deslizamento", "áreas de risco", "risk areas", "enxurrada", "voçoroca",
+              "risco", "risk", "are there risks", "zonas de risco", "near [location] risk"
+- "queimada": display burned areas on the map (2025 data).
+              Triggered by: "burned areas", "fire", "queimadas", "incêndio", "áreas queimadas",
+              "wildfires", "queimou", "fogo"
+- "none":     public health question or topic unrelated to map control
 
-        Available RAs (for draw/remove, Portuguese names): {subdist_str}
-        Available POI categories: {poi_cats_str}
+Available RAs (for draw/remove, Portuguese names): {subdist_str}
+Available POI categories: {poi_cats_str}
 
-        Response format:
-        {{
-        "action":      "draw"|"remove"|"clear"|"poi"|"geocode"|"dengue"|"risco"|"queimada"|"none",
-        "target":      "<RA name, sector code, full address or category>",
-        "area":        "<RA/neighbourhood name for POI search, or null>",
-        "category":    "<normalised POI category without accents, or null>",
-        "name_filter": "<specific name/number to filter, e.g. '01', 'Asa Norte', or null>"
-        }}
+Response format:
+{{
+  "action":      "draw"|"remove"|"clear"|"poi"|"geocode"|"dengue"|"risco"|"queimada"|"none",
+  "target":      "<RA name, sector code, full address or category>",
+  "area":        "<RA/neighbourhood name for POI search, or null>",
+  "category":    "<normalised POI category without accents, or null>",
+  "name_filter": "<specific name/number to filter, e.g. '01', 'Asa Norte', or null>"
+}}
 
-        Rules:
-        - For "poi": if the user mentions a specific unit name or number (e.g. "UBS 01"), set "name_filter".
-        - For "geocode": "target" = full address or place name.
-        - For "draw"/"remove": "target" = RA name (normalised to the list above).
-        - If ambiguous between "poi" and "draw", prefer "poi".
-        - The user may write in Portuguese or English; handle both.
-        """
+Rules:
+- Questions about geological risks, landslides, floods, burned areas, or fire are ALWAYS
+  "risco" or "queimada" actions, NEVER "none".
+- "near [location]" + risk/fire topic = "risco"/"queimada" with area set to that location.
+- For "poi": if the user mentions a specific unit name or number (e.g. "UBS 01"), set "name_filter".
+- For "geocode": "target" = full address or place name.
+- For "draw"/"remove": "target" = RA name (normalised to the list above).
+- If ambiguous between "poi" and "draw", prefer "poi".
+- The user may write in Portuguese or English; handle both.
+"""
     resp = client.chat.completions.create(
         model="qwen/qwen3-32b",
         messages=[
@@ -795,7 +802,7 @@ if "chat_history"  not in st.session_state: st.session_state["chat_history"]  = 
 
 # ── Layout ────────────────────────────────────────────────────────────────────
 
-col_map, col_chat = st.columns([1, 1])
+col_chat, col_map = st.columns([1, 1])
 
 # --- Chat primeiro (processa input e atualiza session_state) ---
 with col_chat:
@@ -823,8 +830,7 @@ with col_chat:
             response = execute_command(parsed, lang=lang)
 
             if response is None:
-                response, localidades = answer_health_question(user_msg, lang=lang)
-                entities = extract_entities(user_msg)
+                response, localidades, entities = answer_health_question(user_msg, lang=lang)
                 entidades_loc = set(entities["locations"])
                 if entidades_loc:
                     localidades = {
@@ -851,7 +857,7 @@ with col_chat:
                     ]
 
         st.session_state["chat_history"].append({"role": "assistant", "content": response})
-        # NÃO chama st.rerun() aqui — deixa o Streamlit re-renderizar naturalmente
+        st.rerun()
 
     if st.session_state["chat_history"]:
         if st.button("🧹 Clear conversation"):
