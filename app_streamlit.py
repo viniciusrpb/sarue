@@ -18,7 +18,32 @@ st.title("Saruê ::: Fiocruz Brasília")
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
+UBS_CATEGORIES = {"ubs", "ups", "unidade basica", "unidade básica"}
+
 HEADERS_OSM = {"User-Agent": "Sarue-Fiocruz/2.0 (fiocruz.br)"}
+
+RA_BBOX = {
+    "asa norte":       "-15.775,-47.920,-15.710,-47.870",
+    "asa sul":         "-15.840,-47.930,-15.775,-47.870",
+    "taguatinga":      "-15.870,-48.080,-15.790,-48.020",
+    "ceilandia":       "-15.850,-48.130,-15.760,-48.060",
+    "samambaia":       "-15.900,-48.120,-15.840,-48.050",
+    "gama":            "-16.060,-48.090,-15.990,-47.990",
+    "sobradinho":      "-15.660,-47.870,-15.590,-47.790",
+    "planaltina":      "-15.650,-47.680,-15.560,-47.590",
+    "brazlandia":      "-15.730,-48.230,-15.650,-48.140",
+    "paranoa":         "-15.740,-47.780,-15.660,-47.720",
+    "nucleo bandeirante": "-15.880,-47.990,-15.840,-47.940",
+    "guara":           "-15.840,-47.990,-15.790,-47.940",
+    "cruzeiro":        "-15.800,-47.970,-15.760,-47.930",
+    "lago norte":      "-15.730,-47.880,-15.680,-47.820",
+    "lago sul":        "-15.870,-47.870,-15.820,-47.810",
+    "aguas claras":    "-15.880,-48.040,-15.840,-47.990",
+    "riacho fundo":    "-15.910,-48.040,-15.870,-47.990",
+    "vicente pires":   "-15.840,-48.070,-15.790,-48.020",
+    "itapoa":          "-15.720,-47.780,-15.670,-47.740",
+    "estrutural":      "-15.790,-48.030,-15.760,-47.990",
+}
 
 OSM_CATEGORIES = {
     "hospital": ("amenity", "hospital", "🏥", "red"),
@@ -60,6 +85,71 @@ def _norm(s):
     s = "".join(c for c in s if not unicodedata.combining(c))
     return s.lower().strip()
 
+@st.cache_data(show_spinner=False)
+def load_ubs_df():
+    path = os.path.join(os.path.dirname(__file__), "database", "ubs_df.csv")
+    df = pd.read_csv(path, dtype=str)
+    for col in ["latitude", "longitude"]:
+        df[col] = df[col].str.replace(",", ".").str.strip()
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["latitude", "longitude"])
+    df["nome_norm"] = df["nome"].apply(_norm)
+    df["bairro_norm"] = df["bairro"].apply(_norm)
+    return df
+
+
+def search_ubs_local(area_name=None, name_filter=None):
+    df = load_ubs_df()
+
+    if area_name:
+        area_n = _norm(area_name)
+        df = df[
+            df["bairro_norm"].str.contains(area_n, na=False) |
+            df["nome_norm"].str.contains(area_n, na=False)
+        ]
+
+    if name_filter:
+        filt_n = _norm(name_filter)
+        df = df[df["nome_norm"].str.contains(filt_n, na=False)]
+
+    pois = []
+    for _, row in df.iterrows():
+        pois.append({
+            "name":    row["nome"].title(),
+            "lat":     row["latitude"],
+            "lon":     row["longitude"],
+            "address": row.get("logradouro", ""),
+            "phone":   "",
+        })
+    return pois
+
+@st.cache_data(show_spinner=False, ttl=86400)
+def get_area_bbox(area_name):
+    params = {
+        "q": f"{area_name}, Distrito Federal, Brasil",
+        "format": "json",
+        "limit": 1,
+        "addressdetails": 0,
+        "countrycodes": "br",
+        "viewbox": "-48.28,-16.05,-47.30,-15.48",
+        "bounded": 1,
+    }
+    try:
+        r = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params=params,
+            headers=HEADERS_OSM,
+            timeout=10,
+        )
+        r.raise_for_status()
+        results = r.json()
+        if results and "boundingbox" in results[0]:
+            bb = results[0]["boundingbox"]
+            # Nominatim retorna [south, north, west, east]
+            return f"{bb[0]},{bb[2]},{bb[1]},{bb[3]}"
+    except Exception:
+        pass
+    return None
 
 @st.cache_data(show_spinner=False)
 def load_geojson():
@@ -176,25 +266,35 @@ def geocode(address):
         return [], str(e)
 
 
-def _overpass_query(key, value, area_name):
+def _overpass_query(key, value, area_name, name_filter=None):
+    name_clause = f'["name"~"{name_filter}",i]' if name_filter else ""
+
+    bbox = DF_BBOX
     if area_name:
-        area_filter = f'area["name"~"{area_name}",i]["admin_level"~"8|9|10"]->.a;'
-        if value == "*":
-            selectors = f'node["{key}"](area.a); way["{key}"](area.a);'
-        else:
-            selectors = f'node["{key}"="{value}"](area.a); way["{key}"="{value}"](area.a);'
-        return f"[out:json][timeout:25];\n{area_filter}\n({selectors});\nout center 100;"
+        area_bbox = get_area_bbox(area_name)
+        if area_bbox:
+            bbox = area_bbox
+
+    if value == "*":
+        selectors = f'node["{key}"]{name_clause}({bbox}); way["{key}"]{name_clause}({bbox});'
     else:
-        if value == "*":
-            selectors = f'node["{key}"]({DF_BBOX}); way["{key}"]({DF_BBOX});'
-        else:
-            selectors = f'node["{key}"="{value}"]({DF_BBOX}); way["{key}"="{value}"]({DF_BBOX});'
-        return f"[out:json][timeout:25];\n({selectors});\nout center 100;"
+        selectors = f'node["{key}"="{value}"]{name_clause}({bbox}); way["{key}"="{value}"]{name_clause}({bbox});'
+
+    return f"[out:json][timeout:25];\n({selectors});\nout center 100;"
 
 
-def search_poi(category, area_name):
+
+def search_poi(category, area_name, name_filter=None):
     cat_norm = _norm(category)
 
+    # --- fonte local para UBS ---
+    if any(cat_norm == _norm(k) or _norm(k) in cat_norm for k in UBS_CATEGORIES):
+        pois = search_ubs_local(area_name=area_name, name_filter=name_filter)
+        if pois:
+            return pois, "🏥", "blue", None
+        # se não achou localmente, cai no Overpass abaixo
+
+    # --- Overpass para outras categorias ---
     matched = None
     for k, v in OSM_CATEGORIES.items():
         if cat_norm == _norm(k) or _norm(k) in cat_norm or cat_norm in _norm(k):
@@ -206,37 +306,24 @@ def search_poi(category, area_name):
     else:
         osm_key, osm_val, icon, color = "amenity", cat_norm, "📍", "gray"
 
-    query = _overpass_query(osm_key, osm_val, area_name)
+    query = _overpass_query(osm_key, osm_val, area_name, name_filter=name_filter)
+    elements, err = _overpass_request(query)
 
-    try:
-        r = requests.post(
-            "https://overpass-api.de/api/interpreter",
-            data={"data": query},
-            headers=HEADERS_OSM,
-            timeout=30,
-        )
-        r.raise_for_status()
-        elements = r.json().get("elements", [])
-    except requests.exceptions.Timeout:
-        return [], icon, color, "Connection timeout while querying Overpass API."
-    except Exception as e:
-        return [], icon, color, str(e)
+    if err:
+        return [], icon, color, err
 
     pois = []
     for el in elements:
         tags = el.get("tags", {})
         name = (
-            tags.get("name")
-            or tags.get("name:pt")
-            or tags.get("operator")
-            or osm_val.title()
+            tags.get("name") or tags.get("name:pt")
+            or tags.get("operator") or osm_val.title()
         )
         if el["type"] == "node":
             lat, lon = el.get("lat"), el.get("lon")
         else:
             c = el.get("center", {})
             lat, lon = c.get("lat"), c.get("lon")
-
         if lat and lon:
             pois.append({
                 "name":    name,
@@ -320,11 +407,12 @@ Response format:
   "action":   "draw"|"remove"|"clear"|"poi"|"geocode"|"dengue"|"none",
   "target":   "<RA name, sector code, full address or category>",
   "area":     "<RA/neighbourhood name for POI search, or null>",
-  "category": "<normalised POI category without accents, or null>"
+  "category": "<normalised POI category without accents, or null>",
+  "name_filter": "<specific name/number to filter, e.g. '01', 'Asa Norte', or null>"
 }}
 
 Rules:
-- For "poi": "category" = type (e.g. "hospital", "farmacia", "pharmacy"); "area" = RA/neighbourhood if mentioned, else null.
+- For "poi": if the user mentions a specific unit name or number (e.g. "UBS 01", "Hospital 3"), set "name_filter" to that identifier.
 - For "geocode": "target" = full address or place name.
 - For "draw"/"remove": "target" = RA name (normalised to the list above).
 - If ambiguous between "poi" and "draw", prefer "poi".
@@ -415,14 +503,16 @@ def execute_command(parsed, lang="en"):
             f"✅ **{label}** desenhado no mapa com {len(features)} setor(es) censitário(s).",
         )
 
+
     if action == "poi":
+        name_filter = parsed.get("name_filter", None)
         spinner_msg = (
             f"Querying OpenStreetMap: **{category}**..."
             if lang == "en"
             else f"Consultando OpenStreetMap: **{category}**..."
         )
         with st.spinner(spinner_msg):
-            pois, icon, color, err = search_poi(category, area)
+            pois, icon, color, err = search_poi(category, area, name_filter=name_filter)
 
         if err:
             return msg(
