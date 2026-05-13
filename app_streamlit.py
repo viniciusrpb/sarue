@@ -92,16 +92,10 @@ POLY_COLORS = [
     "#9b59b6", "#1abc9c", "#e67e22", "#34495e",
 ]
 
-
-# ── Utilidades ────────────────────────────────────────────────────────────────
-
 def _norm(s):
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(c for c in s if not unicodedata.combining(c))
     return s.lower().strip()
-
-
-# ── Carregamento de dados ─────────────────────────────────────────────────────
 
 @st.cache_data(show_spinner=False)
 def load_ubs_df():
@@ -189,9 +183,6 @@ def load_queimadas():
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
-
-# ── Dengue ────────────────────────────────────────────────────────────────────
-
 def aggregate_dengue_by_sector(df):
     return df.groupby("cd_setor")["casos"].sum().reset_index()
 
@@ -240,13 +231,11 @@ def get_dengue_color(value):
             return colors[min(i, len(colors) - 1)]
     return colors[-1]
 
-
-# ── RAG ───────────────────────────────────────────────────────────────────────
-
 @st.cache_data(show_spinner=False, ttl=300)
 def extract_entities(text):
     resp = client.chat.completions.create(
         model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
+        extra_body={"thinking": {"type": "disabled"}},
         messages=[
             {
                 "role": "system",
@@ -390,6 +379,7 @@ Answer:"""
 
     resp = client.chat.completions.create(
         model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
+        extra_body={"thinking": {"type": "disabled"}},
         messages=[
             {"role": "system", "content": "You are a concise, factual public-health assistant."},
             {"role": "user",   "content": prompt},
@@ -398,9 +388,6 @@ Answer:"""
         max_tokens=600,
     )
     return resp.choices[0].message.content, localidades_encontradas
-
-
-# ── OSM / Overpass ────────────────────────────────────────────────────────────
 
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_area_bbox(area_name):
@@ -571,6 +558,7 @@ def find_sectors(query_text):
 def detect_language(text):
     resp = client.chat.completions.create(
         model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
+        extra_body={"thinking": {"type": "disabled"}},
         messages=[
             {"role": "system", "content": (
                 "Detect the language of the user message. "
@@ -623,6 +611,7 @@ Rules:
 """
     resp = client.chat.completions.create(
         model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
+        extra_body={"thinking": {"type": "disabled"}},
         messages=[
             {"role": "system", "content": system},
             {"role": "user",   "content": user_text},
@@ -966,6 +955,15 @@ with col_chat:
 
             if response is None:
                 response, localidades = answer_health_question(user_msg, lang=lang)
+                entities = extract_entities(user_msg)
+
+                # filtra localidades: só desenha as que batem com entidades da pergunta
+                entidades_loc = set(entities["locations"])
+                if entidades_loc:
+                    localidades = {
+                        loc for loc in localidades
+                        if any(e in _norm(loc) or _norm(loc) in e for e in entidades_loc)
+                    }
 
                 last_lats, last_lons = [], []
                 for loc in localidades:
@@ -973,21 +971,23 @@ with col_chat:
                     if features:
                         color = next_poly_color()
                         st.session_state["drawn_layers"][label] = {
-                            "features": features, "color": color,
+                            "features": features,
+                            "color": color,
                         }
                         for feat in features:
                             for ring in feat["geometry"]["coordinates"]:
                                 for lon, lat in ring:
                                     last_lats.append(lat)
                                     last_lons.append(lon)
+
                 if last_lats:
                     st.session_state["map_center"] = [
                         sum(last_lats) / len(last_lats),
                         sum(last_lons) / len(last_lons),
                     ]
 
-        st.session_state["chat_history"].append({"role": "assistant", "content": response})
-        st.rerun()
+                    st.session_state["chat_history"].append({"role": "assistant", "content": response})
+                    st.rerun()
 
     if st.session_state["chat_history"]:
         if st.button("🧹 Clear conversation"):
