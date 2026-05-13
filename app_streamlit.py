@@ -12,6 +12,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_core.documents import Document
+from rank_bm25 import BM25Okapi
 
 st.set_page_config(page_title="Opossum ::: Fiocruz Brasília", layout="wide")
 st.title("Opossum ::: Fiocruz Brasília")
@@ -96,6 +97,41 @@ def load_ubs_df():
     df["nome_norm"] = df["nome"].apply(_norm)
     df["bairro_norm"] = df["bairro"].apply(_norm)
     return df
+
+@st.cache_data(show_spinner=False, ttl=300)
+def extract_entities(text: str) -> dict:
+    resp = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Extract named entities from the user query. "
+                    "Reply ONLY with pure JSON, no markdown.\n"
+                    "Format: {\"locations\": [], \"organizations\": [], \"events\": []}\n"
+                    "Examples:\n"
+                    "- locations: bairros, RAs, hospitais, cidades (e.g. 'Asa Norte', 'Gama', 'HRAN')\n"
+                    "- organizations: órgãos, secretarias, programas (e.g. 'SES-DF', 'SAMU', 'IgesDF')\n"
+                    "- events: eventos, feriados, campanhas (e.g. 'Carnaval', 'Dia D', 'COVID-19')\n"
+                    "Return empty lists if nothing found. Never add explanations."
+                ),
+            },
+            {"role": "user", "content": text},
+        ],
+        temperature=0.0,
+        max_tokens=120,
+    )
+    raw = resp.choices[0].message.content.strip()
+    raw = re.sub(r"```[a-z]*", "", raw).strip().strip("`")
+    try:
+        entities = json.loads(raw)
+        return {
+            "locations":     [_norm(e) for e in entities.get("locations",     [])],
+            "organizations": [_norm(e) for e in entities.get("organizations", [])],
+            "events":        [_norm(e) for e in entities.get("events",        [])],
+        }
+    except Exception:
+        return {"locations": [], "organizations": [], "events": []}
 
 
 def search_ubs_local(area_name=None, name_filter=None):
@@ -242,25 +278,72 @@ def attach_dengue_to_geojson():
 
     return gj
 
-
 @st.cache_resource(show_spinner=False)
 def setup_retriever():
-    docs     = load_documents()
-    splitter = CharacterTextSplitter(
-        chunk_size=1200,    # era 600 — notícias cabem melhor inteiras
-        chunk_overlap=200,  # era 80 — mais sobreposição evita cortes ruins
-        separator="\n\n",   # quebra por parágrafo, não no meio de frases
-    )
-    chunks = splitter.split_documents(docs)
+    docs = load_documents()
 
+    # Prefixo de entidades no texto do embedding
+    enriched = []
+    for doc in docs:
+        locs  = doc.metadata.get("localidades", "").replace(";", " ")
+        tipos = doc.metadata.get("tipos", "").replace(";", " ")
+        prefix = f"[local: {locs}] [tipo: {tipos}]\n" if (locs or tipos) else ""
+        enriched.append(Document(
+            page_content=prefix + doc.page_content,
+            metadata=doc.metadata,
+        ))
+
+    splitter = CharacterTextSplitter(
+        chunk_size=1200, chunk_overlap=200, separator="\n\n"
+    )
+    chunks = splitter.split_documents(enriched)
+
+    # Dense index (FAISS)
     embeddings = HuggingFaceEmbeddings(
         model_name="alfaneo/bertimbau-base-portuguese-sts",
         model_kwargs={"device": "cpu"},
         encode_kwargs={"normalize_embeddings": True},
     )
-    db = FAISS.from_documents(chunks, embedding=embeddings)
-    return db.as_retriever(search_kwargs={"k": 8})  # era 5 — recupera mais candidatos
+    dense_db = FAISS.from_documents(chunks, embedding=embeddings)
+    dense_retriever = dense_db.as_retriever(search_kwargs={"k": 12})
 
+    # BM25 index (keyword)
+    corpus = [c.page_content.lower().split() for c in chunks]
+    bm25   = BM25Okapi(corpus)
+
+    return dense_retriever, bm25, chunks
+
+def _rerank(dense_docs, bm25_docs, entities, top_k=6):
+    all_entities = (
+        entities["locations"] +
+        entities["organizations"] +
+        entities["events"]
+    )
+
+    scored = {}
+    for rank, doc in enumerate(dense_docs):
+        key = id(doc)
+        scored[key] = {"doc": doc, "score": len(dense_docs) - rank}
+
+    for rank, doc in enumerate(bm25_docs):
+        key = id(doc)
+        if key in scored:
+            scored[key]["score"] += (len(bm25_docs) - rank) * 0.5
+        else:
+            scored[key] = {"doc": doc, "score": (len(bm25_docs) - rank) * 0.5}
+
+    for item in scored.values():
+        doc  = item["doc"]
+        text = (
+            _norm(doc.metadata.get("localidades", "")) + " " +
+            _norm(doc.metadata.get("tipos", ""))       + " " +
+            _norm(doc.page_content[:300])
+        )
+        bonus = sum(2.0 for e in all_entities if e and e in text)
+        item["score"] += bonus
+
+    ranked = sorted(scored.values(), key=lambda x: x["score"], reverse=True)
+    return [item["doc"] for item in ranked[:top_k]]
 
 def geocode(address):
     params = {
@@ -875,24 +958,27 @@ with col_chat:
             if response is None:
                 response, localidades = answer_health_question(user_msg, lang=lang)
 
-                # desenha setores das localidades mencionadas no mapa
-                if localidades:
-                    for loc in localidades:
-                        label, features = find_sectors(loc)
-                        if features:
-                            color = next_poly_color()
-                            st.session_state["drawn_layers"][label] = {
-                                "features": features,
-                                "color": color,
-                            }
-                    loc_list = ", ".join(l.title() for l in localidades if find_sectors(l)[1])
-                    if loc_list:
-                        suffix = (
-                            f"\n\n🗺️ *Locations mentioned highlighted on the map: {loc_list}*"
-                            if lang == "en"
-                            else f"\n\n🗺️ *Localidades mencionadas destacadas no mapa: {loc_list}*"
-                        )
-                        response += suffix
+                last_lats, last_lons = [], []
+                for loc in localidades:
+                    label, features = find_sectors(loc)
+                    if features:
+                        color = next_poly_color()
+                        st.session_state["drawn_layers"][label] = {
+                            "features": features,
+                            "color": color,
+                        }
+                        # coleta coordenadas do último layer desenhado
+                        for feat in features:
+                            for ring in feat["geometry"]["coordinates"]:
+                                for lon, lat in ring:
+                                    last_lats.append(lat)
+                                    last_lons.append(lon)
+
+                if last_lats:
+                    st.session_state["map_center"] = [
+                        sum(last_lats) / len(last_lats),
+                        sum(last_lons) / len(last_lons),
+                    ]
 
         st.session_state["chat_history"].append(
             {"role": "assistant", "content": response}
