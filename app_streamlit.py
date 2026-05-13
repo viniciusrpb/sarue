@@ -662,10 +662,18 @@ def answer_health_question(pergunta, lang="en"):
     documentos = retriever.invoke(pergunta)
     MAX_CHARS  = 6000
     contexto   = ""
+    localidades_encontradas = set()
+
     for doc in documentos:
         if len(contexto) + len(doc.page_content) > MAX_CHARS:
             break
         contexto += doc.page_content + "\n\n---\n\n"
+        # coleta localidades dos metadados
+        locs = doc.metadata.get("localidades", "")
+        for loc in locs.split(";"):
+            loc = loc.strip()
+            if loc:
+                localidades_encontradas.add(loc)
 
     lang_instruction = (
         "Answer in English, even though the context is in Portuguese. "
@@ -674,10 +682,16 @@ def answer_health_question(pergunta, lang="en"):
         else "Responda em português."
     )
 
-    prompt = f"""You are an assistant specialised in Brazilian public health.
-Answer exclusively based on the information provided in the context below.
-If the answer is not clearly present, say you could not find sufficient evidence.
+    prompt = f"""You are an assistant specialised in Brazilian public health (Distrito Federal).
+Answer based on the news articles provided in the context below.
 {lang_instruction}
+
+Rules:
+- Never say "according to the context" or "the context mentions" — just answer directly.
+- Always cite the source naturally, e.g. "According to the Secretaria de Saúde do DF..." or "A SES-DF informa que..."
+- The source name to use is always "Secretaria de Saúde do Distrito Federal (SES-DF)".
+- If the answer is not in the context, say you could not find information about that topic.
+- Be concise and objective.
 
 Context:
 {contexto}
@@ -692,17 +706,14 @@ Answer:"""
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "You are a technical, objective public-health assistant. "
-                    "Always reply in the same language as the user's question."
-                ),
+                "content": "You are a technical, objective public-health assistant.",
             },
             {"role": "user", "content": prompt},
         ],
         temperature=0.3,
         max_tokens=600,
     )
-    return resp.choices[0].message.content
+    return resp.choices[0].message.content, localidades_encontradas
 
 retriever = setup_retriever()
 
@@ -726,7 +737,7 @@ POLY_COLORS = [
 col_map, col_chat = st.columns([1, 1])
 
 with col_map:
-    st.subheader("Map – Federal District (DF)")
+    st.subheader("Federal District (DF)")
 
     all_labels = (
         list(st.session_state["drawn_layers"].keys())
@@ -848,11 +859,31 @@ with col_chat:
         )
 
         with st.spinner("Processing..."):
-            lang     = detect_language(user_msg)
-            parsed   = parse_command(user_msg)
+            lang   = detect_language(user_msg)
+            parsed = parse_command(user_msg)
             response = execute_command(parsed, lang=lang)
+
             if response is None:
-                response = answer_health_question(user_msg, lang=lang)
+                response, localidades = answer_health_question(user_msg, lang=lang)
+
+                # desenha setores das localidades mencionadas no mapa
+                if localidades:
+                    for loc in localidades:
+                        label, features = find_sectors(loc)
+                        if features:
+                            color = next_poly_color()
+                            st.session_state["drawn_layers"][label] = {
+                                "features": features,
+                                "color": color,
+                            }
+                    loc_list = ", ".join(l.title() for l in localidades if find_sectors(l)[1])
+                    if loc_list:
+                        suffix = (
+                            f"\n\n🗺️ *Locations mentioned highlighted on the map: {loc_list}*"
+                            if lang == "en"
+                            else f"\n\n🗺️ *Localidades mencionadas destacadas no mapa: {loc_list}*"
+                        )
+                        response += suffix
 
         st.session_state["chat_history"].append(
             {"role": "assistant", "content": response}
