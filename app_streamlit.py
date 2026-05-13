@@ -13,8 +13,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_core.documents import Document
 
-st.set_page_config(page_title="Saruê ::: Fiocruz Brasília", layout="wide")
-st.title("Saruê ::: Fiocruz Brasília")
+st.set_page_config(page_title="Opossum ::: Fiocruz Brasília", layout="wide")
+st.title("Opossum ::: Fiocruz Brasília")
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
@@ -246,11 +246,20 @@ def attach_dengue_to_geojson():
 @st.cache_resource(show_spinner=False)
 def setup_retriever():
     docs     = load_documents()
-    splitter = CharacterTextSplitter(chunk_size=600, chunk_overlap=80)
-    chunks   = splitter.split_documents(docs)
-    embeddings = HuggingFaceEmbeddings(model_name="juridics/bertimbau-base-portuguese-sts-scale")
+    splitter = CharacterTextSplitter(
+        chunk_size=1200,    # era 600 — notícias cabem melhor inteiras
+        chunk_overlap=200,  # era 80 — mais sobreposição evita cortes ruins
+        separator="\n\n",   # quebra por parágrafo, não no meio de frases
+    )
+    chunks = splitter.split_documents(docs)
+
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True},
+    )
     db = FAISS.from_documents(chunks, embedding=embeddings)
-    return db.as_retriever(search_kwargs={"k": 5})
+    return db.as_retriever(search_kwargs={"k": 8})  # era 5 — recupera mais candidatos
 
 
 def geocode(address):
@@ -841,7 +850,7 @@ with col_chat:
     st.subheader("Assistant")
 
     for msg_item in st.session_state["chat_history"]:
-        role_label = "🧑 You" if msg_item["role"] == "user" else "🤖 Agent"
+        role_label = "🧑 You" if msg_item["role"] == "user" else "🤖 Opossum"
         with st.chat_message(msg_item["role"]):
             st.markdown(f"**{role_label}:** {msg_item['content']}")
 
@@ -896,4 +905,4 @@ with col_chat:
             st.rerun()
 
 st.markdown("---")
-st.markdown("© 2026 · Saruê – Fiocruz Brasília · Grupo de Inteligência Computacional na Saúde (GICS)")
+st.markdown("© 2026 · Opossum – Fiocruz Brasília · Grupo de Inteligência Computacional na Saúde (GICS)")
