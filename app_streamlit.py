@@ -360,7 +360,7 @@ Answer based on the news articles in the context below.
 {lang_instruction}
 {entity_hint}
 Rules:
-- Answer directly. Never say "according to the context".
+- Answer directly — never say "according to the context".
 - Cite the source as "Secretaria de Saúde do Distrito Federal (SES-DF)".
 - Include dates, times, and locations when present in the context.
 - If truly nothing is found, say so briefly.
@@ -374,16 +374,17 @@ Question:
 Answer:"""
 
     resp = client.chat.completions.create(
-        model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
-        extra_body={"thinking": {"type": "disabled"}},
+        model="qwen/qwen3-32b",
         messages=[
-            {"role": "system", "content": "You are a concise, factual public-health assistant."},
-            {"role": "user",   "content": prompt},
+            {"role": "system", "content": "You are a concise, factual public-health assistant. Do not think out loud."},
+            {"role": "user",   "content": f"/no_think {prompt}"},
         ],
         temperature=0.2,
         max_tokens=600,
     )
-    return resp.choices[0].message.content, localidades_encontradas
+    raw = resp.choices[0].message.content.strip()
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+    return raw, localidades_encontradas
 
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_area_bbox(area_name):
@@ -618,7 +619,7 @@ Rules:
         temperature=0.0,
         max_tokens=120,
     )
-    raw = resp.choices[0].message.content.strip()
+    # raw = resp.choices[0].message.content.strip()
     raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
     raw = re.sub(r"```[a-z]*", "", raw).strip().strip("`")
     try:
