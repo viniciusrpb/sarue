@@ -254,7 +254,7 @@ def setup_retriever():
     chunks = splitter.split_documents(docs)
 
     embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
+        model_name="alfaneo/bertimbau-base-portuguese-sts",
         model_kwargs={"device": "cpu"},
         encode_kwargs={"normalize_embeddings": True},
     )
@@ -692,23 +692,23 @@ def answer_health_question(pergunta, lang="en"):
     )
 
     prompt = f"""You are an assistant specialised in Brazilian public health (Distrito Federal).
-Answer based on the news articles provided in the context below.
-{lang_instruction}
+    Answer based on the news articles provided in the context below.
+    {lang_instruction}
 
-Rules:
-- Never say "according to the context" or "the context mentions" — just answer directly.
-- Always cite the source naturally, e.g. "According to the Secretaria de Saúde do DF..." or "A SES-DF informa que..."
-- The source name to use is always "Secretaria de Saúde do Distrito Federal (SES-DF)".
-- If the answer is not in the context, say you could not find information about that topic.
-- Be concise and objective.
+    Rules:
+    - Read ALL context blocks carefully before concluding something is not mentioned.
+    - Never say "according to the context" — answer directly and naturally.
+    - Cite the source as "Secretaria de Saúde do Distrito Federal (SES-DF)".
+    - If dates or times are mentioned, include them in the answer.
+    - Only say you could not find information if truly no context block is relevant.
 
-Context:
-{contexto}
+    Context:
+    {contexto}
 
-Question:
-{pergunta}
+    Question:
+    {pergunta}
 
-Answer:"""
+    Answer:"""
 
     resp = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
