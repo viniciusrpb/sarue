@@ -232,30 +232,26 @@ def get_dengue_color(value):
     return colors[-1]
 
 @st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=300)
 def extract_entities(text):
     resp = client.chat.completions.create(
-        model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
-        extra_body={"thinking": {"type": "disabled"}},
+        model="qwen/qwen3-32b",
         messages=[
             {
                 "role": "system",
                 "content": (
                     "Extract named entities from the user query. "
-                    "Reply ONLY with pure JSON, no markdown.\n"
-                    "Format: {\"locations\": [], \"organizations\": [], \"events\": []}\n"
-                    "Examples:\n"
-                    "- locations: bairros, RAs, hospitais, cidades (e.g. 'Asa Norte', 'Gama', 'HRAN')\n"
-                    "- organizations: órgãos, secretarias, programas (e.g. 'SES-DF', 'SAMU', 'IgesDF')\n"
-                    "- events: eventos, feriados, campanhas (e.g. 'Carnaval', 'Dia D', 'COVID-19')\n"
-                    "Return empty lists if nothing found. Never add explanations."
+                    "Reply ONLY with pure JSON, no markdown, no thinking, no explanation.\n"
+                    "Format: {\"locations\": [], \"organizations\": [], \"events\": []}"
                 ),
             },
-            {"role": "user", "content": text},
+            {"role": "user", "content": f"/no_think {text}"},
         ],
         temperature=0.0,
         max_tokens=120,
     )
     raw = resp.choices[0].message.content.strip()
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
     raw = re.sub(r"```[a-z]*", "", raw).strip().strip("`")
     try:
         entities = json.loads(raw)
@@ -553,22 +549,26 @@ def find_sectors(query_text):
     return None, []
 
 
-# ── LLM helpers ───────────────────────────────────────────────────────────────
-
 def detect_language(text):
     resp = client.chat.completions.create(
-        model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
-        extra_body={"thinking": {"type": "disabled"}},
+        model="qwen/qwen3-32b",
         messages=[
-            {"role": "system", "content": (
-                "Detect the language of the user message. "
-                "Reply with only 'pt' if it is Portuguese, or 'en' if it is English or any other language."
-            )},
-            {"role": "user", "content": text},
+            {
+                "role": "system",
+                "content": (
+                    "Detect the language of the user message. "
+                    "Reply with only 'pt' if it is Portuguese, or 'en' if it is English or any other language. "
+                    "Do not explain or think out loud."
+                ),
+            },
+            {"role": "user", "content": f"/no_think {text}"},
         ],
-        temperature=0.0, max_tokens=5,
+        temperature=0.0,
+        max_tokens=10,
     )
     lang = resp.choices[0].message.content.strip().lower()
+    # remove qualquer <think>...</think> que vaze
+    lang = re.sub(r"<think>.*?</think>", "", lang, flags=re.DOTALL).strip()
     return "pt" if "pt" in lang else "en"
 
 
@@ -610,15 +610,16 @@ Rules:
 - The user may write in Portuguese or English; handle both.
 """
     resp = client.chat.completions.create(
-        model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
-        extra_body={"thinking": {"type": "disabled"}},
+        model="qwen/qwen3-32b",
         messages=[
             {"role": "system", "content": system},
-            {"role": "user",   "content": user_text},
+            {"role": "user",   "content": f"/no_think {user_text}"},
         ],
-        temperature=0.0, max_tokens=120,
+        temperature=0.0,
+        max_tokens=120,
     )
     raw = resp.choices[0].message.content.strip()
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
     raw = re.sub(r"```[a-z]*", "", raw).strip().strip("`")
     try:
         return json.loads(raw)
