@@ -578,54 +578,54 @@ def parse_command(user_text):
     poi_cats_str = ", ".join(sorted({_norm(k) for k in OSM_CATEGORIES}))
 
     system = f"""You are the map control agent for the Opossum app (Fiocruz Brasília, DF, Brazil).
-Classify the user message and respond ONLY with pure JSON (no markdown, no explanation).
+        Classify the user message and respond ONLY with pure JSON (no markdown, no explanation).
 
-Actions:
-- "draw":     draw census sector polygons for an Administrative Region (RA) on the map
-- "remove":   remove a specific layer from the map
-- "clear":    remove ALL layers from the map
-- "poi":      search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
-- "geocode":  locate and pin a specific address or place on the map
-- "dengue":   display a dengue case choropleth map by census sector
-- "risco":    display geological risk areas on the map (CPRM data)
-- "queimada": display burned areas on the map (2025 data)
-- "none":     public health question or topic unrelated to map control
+        Actions:
+        - "draw":     draw census sector polygons for an Administrative Region (RA) on the map
+        - "remove":   remove a specific layer from the map
+        - "clear":    remove ALL layers from the map
+        - "poi":      search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
+        - "geocode":  locate and pin a specific address or place on the map
+        - "dengue":   display a dengue case choropleth map by census sector
+        - "risco":    display geological risk areas on the map (CPRM data)
+        - "queimada": display burned areas on the map (2025 data)
+        - "none":     public health question or topic unrelated to map control
 
-Available RAs (for draw/remove, Portuguese names): {subdist_str}
-Available POI categories: {poi_cats_str}
+        Available RAs (for draw/remove, Portuguese names): {subdist_str}
+        Available POI categories: {poi_cats_str}
 
-Response format:
-{{
-  "action":      "draw"|"remove"|"clear"|"poi"|"geocode"|"dengue"|"risco"|"queimada"|"none",
-  "target":      "<RA name, sector code, full address or category>",
-  "area":        "<RA/neighbourhood name for POI search, or null>",
-  "category":    "<normalised POI category without accents, or null>",
-  "name_filter": "<specific name/number to filter, e.g. '01', 'Asa Norte', or null>"
-}}
+        Response format:
+        {{
+        "action":      "draw"|"remove"|"clear"|"poi"|"geocode"|"dengue"|"risco"|"queimada"|"none",
+        "target":      "<RA name, sector code, full address or category>",
+        "area":        "<RA/neighbourhood name for POI search, or null>",
+        "category":    "<normalised POI category without accents, or null>",
+        "name_filter": "<specific name/number to filter, e.g. '01', 'Asa Norte', or null>"
+        }}
 
-Rules:
-- For "poi": if the user mentions a specific unit name or number (e.g. "UBS 01"), set "name_filter".
-- For "geocode": "target" = full address or place name.
-- For "draw"/"remove": "target" = RA name (normalised to the list above).
-- If ambiguous between "poi" and "draw", prefer "poi".
-- The user may write in Portuguese or English; handle both.
-"""
+        Rules:
+        - For "poi": if the user mentions a specific unit name or number (e.g. "UBS 01"), set "name_filter".
+        - For "geocode": "target" = full address or place name.
+        - For "draw"/"remove": "target" = RA name (normalised to the list above).
+        - If ambiguous between "poi" and "draw", prefer "poi".
+        - The user may write in Portuguese or English; handle both.
+        """
     resp = client.chat.completions.create(
-            model="qwen/qwen3-32b",
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": f"/no_think {user_text}"},
-            ],
-            temperature=0.0,
-            max_tokens=120,
-        )
-        raw = resp.choices[0].message.content.strip()  # <- remova o #
-        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-        raw = re.sub(r"```[a-z]*", "", raw).strip().strip("`")
-        try:
-            return json.loads(raw)
-        except Exception:
-            return {"action": "none", "target": "", "area": None, "category": None}
+        model="qwen/qwen3-32b",
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user",   "content": f"/no_think {user_text}"},
+        ],
+        temperature=0.0,
+        max_tokens=120,
+    )
+    raw = resp.choices[0].message.content.strip()  # <- remova o #
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+    raw = re.sub(r"```[a-z]*", "", raw).strip().strip("`")
+    try:
+        return json.loads(raw)
+    except Exception:
+        return {"action": "none", "target": "", "area": None, "category": None}
 
 
 def execute_command(parsed, lang="en"):
