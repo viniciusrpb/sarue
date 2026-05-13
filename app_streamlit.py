@@ -101,7 +101,7 @@ def load_ubs_df():
 @st.cache_data(show_spinner=False, ttl=300)
 def extract_entities(text: str) -> dict:
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="qwen/qwen3-32b",#"llama-3.3-70b-versatile",
         messages=[
             {
                 "role": "system",
@@ -933,7 +933,7 @@ with col_chat:
     st.subheader("Assistant")
 
     for msg_item in st.session_state["chat_history"]:
-        role_label = "🧑 You" if msg_item["role"] == "user" else "🤖 Opossum"
+        role_label = "You" if msg_item["role"] == "user" else "Opossum"
         with st.chat_message(msg_item["role"]):
             st.markdown(f"**{role_label}:** {msg_item['content']}")
 
