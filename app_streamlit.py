@@ -177,21 +177,42 @@ def get_subdist_list():
 
 
 @st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def load_documents():
-    base_dir  = os.path.join(os.path.dirname(__file__), "samples")
+    base_dir = os.path.join(os.path.dirname(__file__), "database/news")
     documents = []
-    for path in ["noticias_ses_1_100.csv"]:
-        df = pd.read_csv(
-            os.path.join(base_dir, path),
-            sep=",", engine="python",
-            on_bad_lines="skip", encoding="utf-8",
-        )
-        for _, row in df.iterrows():
-            titulo  = str(row.get("title",   "")).strip()
-            noticia = str(row.get("content", "")).strip()
-            text    = f"{titulo}\n\n{noticia}".strip()
-            if len(text) > 50:
-                documents.append(Document(page_content=text, metadata={"source": path}))
+
+    for filename in os.listdir(base_dir):
+        if not filename.endswith(".json"):
+            continue
+        path = os.path.join(base_dir, filename)
+        try:
+            with open(path, encoding="utf-8") as f:
+                items = json.load(f)
+        except Exception:
+            continue
+
+        for item in items:
+            titulo = str(item.get("title", "")).strip()
+            conteudo = str(item.get("content", "")).strip()
+            url = str(item.get("url", "")).strip()
+            localidades = str(item.get("localidades", "")).strip()
+            tipos = str(item.get("tipos_unidade","")).strip()
+
+            text = f"{titulo}\n\n{conteudo}".strip()
+            if len(text) < 50:
+                continue
+
+            documents.append(Document(
+                page_content=text,
+                metadata={
+                    "source": filename,
+                    "url": url,
+                    "localidades": localidades,
+                    "tipos": tipos,
+                }
+            ))
+
     return documents
 
 
@@ -720,7 +741,28 @@ with col_map:
             st.rerun()
 
     center = st.session_state["map_center"]
-    m = folium.Map(location=center, zoom_start=12, tiles="CartoDB positron")
+
+    m = folium.Map(location=center, zoom_start=12, tiles=None)
+
+    folium.TileLayer(
+        tiles="CartoDB positron",
+        name="Street map",
+        control=True,
+    ).add_to(m)
+
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",
+        attr="Tiles © Esri",
+        name="Relief",
+        control=True,
+    ).add_to(m)
+
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Tiles © Esri",
+        name="Satellite",
+        control=True,
+    ).add_to(m)
 
     if "dengue_layer" in st.session_state:
         folium.GeoJson(
@@ -779,15 +821,7 @@ with col_map:
             icon=folium.Icon(color="darkred", icon="map-marker"),
         ).add_to(m)
 
-    folium.Marker(
-        [-15.793889, -47.882778],
-        popup="Fiocruz Brasília",
-        tooltip="Fiocruz Brasília",
-        icon=folium.Icon(color="red", icon="plus-sign"),
-    ).add_to(m)
-
-    if len(all_labels) > 1:
-        folium.LayerControl().add_to(m)
+    folium.LayerControl(position="topright", collapsed=False).add_to(m)
 
     st_folium(m, width=None, height=500, returned_objects=[])
 
