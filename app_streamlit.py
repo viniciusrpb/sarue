@@ -611,21 +611,21 @@ Rules:
 - The user may write in Portuguese or English; handle both.
 """
     resp = client.chat.completions.create(
-        model="qwen/qwen3-32b",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user",   "content": f"/no_think {user_text}"},
-        ],
-        temperature=0.0,
-        max_tokens=120,
-    )
-    # raw = resp.choices[0].message.content.strip()
-    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-    raw = re.sub(r"```[a-z]*", "", raw).strip().strip("`")
-    try:
-        return json.loads(raw)
-    except Exception:
-        return {"action": "none", "target": "", "area": None, "category": None}
+            model="qwen/qwen3-32b",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user",   "content": f"/no_think {user_text}"},
+            ],
+            temperature=0.0,
+            max_tokens=120,
+        )
+        raw = resp.choices[0].message.content.strip()  # <- remova o #
+        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+        raw = re.sub(r"```[a-z]*", "", raw).strip().strip("`")
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {"action": "none", "target": "", "area": None, "category": None}
 
 
 def execute_command(parsed, lang="en"):
