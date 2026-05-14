@@ -259,6 +259,75 @@ def get_dengue_color(value):
             return colors[min(i, len(colors) - 1)]
     return colors[-1]
 
+@st.cache_data(show_spinner=False)
+def get_dengue_summary():
+    df = load_dengue_data()
+    total = len(df)
+    confirmed = len(df[df["i_desc_classificacao"].str.contains("Dengue", na=False)])
+    alarm = len(df[df["i_desc_classificacao"] == "Dengue com sinais de alarme"])
+    deaths = len(df[df["i_desc_evolucao"] == "Óbito pelo agravo notificado"])
+
+    # casos por estabelecimento notificante
+    by_estab = (
+        df.groupby("i_desc_estab_cnes_notif")
+        .size()
+        .reset_index(name="casos")
+        .sort_values("casos", ascending=False)
+    )
+
+    # casos por região administrativa (via nome do estabelecimento — heurística)
+    ubs = load_ubs_df()
+    ubs["nome_norm2"] = ubs["nome"].apply(_norm)
+    df["estab_norm"] = df["i_desc_estab_cnes_notif"].apply(_norm)
+
+    # join fuzzy: bairro da UBS como proxy de RA
+    estab_bairro = {}
+    for _, row in ubs.iterrows():
+        estab_bairro[row["nome_norm2"]] = row.get("bairro", "Não Informado")
+
+    df["bairro"] = df["estab_norm"].map(
+        lambda x: next((estab_bairro[k] for k in estab_bairro if k in x or x in k), "Não Informado")
+    )
+
+    by_bairro = (
+        df[df["bairro"] != "Não Informado"]
+        .groupby("bairro")
+        .size()
+        .reset_index(name="casos")
+        .sort_values("casos", ascending=False)
+        .head(5)
+    )
+
+    # casos por faixa etária
+    by_age = (
+        df.groupby("i_faixa_etaria")
+        .size()
+        .reset_index(name="casos")
+        .sort_values("casos", ascending=False)
+        .head(3)
+    )
+
+    # casos por semana epidemiológica
+    by_week = (
+        df.groupby("i_ano_semana_prim_sintomas_svs")
+        .size()
+        .reset_index(name="casos")
+        .sort_values("i_ano_semana_prim_sintomas_svs")
+    )
+    peak_week = by_week.loc[by_week["casos"].idxmax(), "i_ano_semana_prim_sintomas_svs"]
+
+    return {
+        "total": total,
+        "confirmed": confirmed,
+        "alarm": alarm,
+        "deaths": deaths,
+        "top_estab": by_estab.head(5).to_dict("records"),
+        "top_bairro": by_bairro.to_dict("records"),
+        "top_age": by_age.to_dict("records"),
+        "peak_week": peak_week,
+        "by_week": by_week.to_dict("records"),
+    }
+
 @st.cache_data(show_spinner=False, ttl=300)
 def extract_entities(text):
     resp = client.chat.completions.create(
@@ -613,11 +682,14 @@ Actions:
 - "clear":    remove ALL layers from the map
 - "poi":      search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
 - "geocode":  locate and pin a specific address or place on the map
-- "dengue":   display a dengue case choropleth map by census sector.
-              Triggered by: "dengue map", "show dengue", "mapa dengue",
-              "dengue cases", "casos de dengue", "how are the dengue cases",
-              "dengue situation", "situação da dengue", "dengue in [location]",
-              "dengue no DF", "dengue distribution", "where is dengue"
+- "dengue":       display a dengue case choropleth map by census sector.
+                  Triggered by: "show dengue map", "dengue map", "mapa dengue",
+                  "show me dengue", "visualize dengue"
+- "dengue_query": answer analytical questions about dengue data.
+                  Triggered by: "how many cases", "which region has more",
+                  "worst region", "most affected", "dengue situation",
+                  "how is dengue", "dengue cases in 2026", "peak week",
+                  "most cases", "qual região", "quantos casos", "região mais afetada"
 - "risco":    display geological risk areas on the map (CPRM data).
               Triggered by: "risk zones", "geological risk", "landslide", "risco geológico",
               "deslizamento", "áreas de risco", "risk areas", "enxurrada", "voçoroca",
@@ -804,6 +876,44 @@ def execute_command(parsed, lang="en"):
         n = len(gj["features"])
         return msg(f"🔥 {n} burned area polygons loaded (2025 data).",
                    f"🔥 {n} polígonos de áreas queimadas carregados (dados 2025).")
+
+    if action == "dengue_query":
+        s = get_dengue_summary()
+
+        top_estab_txt = "\n".join(
+            f"  {r['i_desc_estab_cnes_notif']}: {r['casos']} cases"
+            for r in s["top_estab"]
+        )
+        top_bairro_txt = "\n".join(
+            f"  {r['bairro'].title()}: {r['casos']} cases"
+            for r in s["top_bairro"]
+        ) if s["top_bairro"] else "  (geographic breakdown not available)"
+
+        top_age_txt = "\n".join(
+            f"  {r['i_faixa_etaria'].replace('_', '-')}: {r['casos']} cases"
+            for r in s["top_age"]
+        )
+
+        return msg(
+            f"🦟 **Dengue in the Distrito Federal — 2026**\n\n"
+            f"**Total notified cases:** {s['total']:,}\n"
+            f"**Confirmed dengue:** {s['confirmed']} ({s['alarm']} with warning signs)\n"
+            f"**Deaths:** {s['deaths']}\n"
+            f"**Epidemiological peak:** week {str(s['peak_week'])[4:]} of 2026\n\n"
+            f"**Top notifying facilities:**\n{top_estab_txt}\n\n"
+            f"**Most affected neighborhoods:**\n{top_bairro_txt}\n\n"
+            f"**Most affected age groups:**\n{top_age_txt}\n\n"
+            f"_Type 'show dengue map' to visualize case distribution by census sector._",
+            f"🦟 **Dengue no Distrito Federal — 2026**\n\n"
+            f"**Total de casos notificados:** {s['total']:,}\n"
+            f"**Dengue confirmada:** {s['confirmed']} ({s['alarm']} com sinais de alarme)\n"
+            f"**Óbitos:** {s['deaths']}\n"
+            f"**Pico epidemiológico:** semana {str(s['peak_week'])[4:]} de 2026\n\n"
+            f"**Estabelecimentos com mais notificações:**\n{top_estab_txt}\n\n"
+            f"**Bairros mais afetados:**\n{top_bairro_txt}\n\n"
+            f"**Faixas etárias mais afetadas:**\n{top_age_txt}\n\n"
+            f"_Digite 'mostrar mapa de dengue' para visualizar a distribuição por setor censitário._",
+        )
 
     if action == "geocode":
         with st.spinner(f"Locating **{target}**..."):
