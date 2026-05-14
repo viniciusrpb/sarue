@@ -14,8 +14,8 @@ from langchain_text_splitters import CharacterTextSplitter
 from langchain_core.documents import Document
 from rank_bm25 import BM25Okapi
 
-st.set_page_config(page_title="Opossum ::: Fiocruz Brasília", layout="wide")
-st.title("Opossum ::: Fiocruz Brasília")
+st.set_page_config(page_title="Public Health Assistant", layout="wide")
+st.title("Public Health Assistant")
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
@@ -1016,4 +1016,4 @@ with col_map:
 
 
 st.markdown("---")
-st.markdown("© 2026 · Opossum – Fiocruz Brasília · Grupo de Inteligência Computacional na Saúde (GICS)")
+#st.markdown("© 2026 · Opossum – Fiocruz Brasília · Grupo de Inteligência Computacional na Saúde (GICS)")
