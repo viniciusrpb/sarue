@@ -165,7 +165,7 @@ def load_documents():
 def load_dengue_data():
     path = os.path.join(os.path.dirname(__file__), "database",
                         "dados_dengue-16042026-ano_2026.csv")
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, sep=";")          # <- adicione sep=";"
     df.columns = [c.lower() for c in df.columns]
     return df
 
