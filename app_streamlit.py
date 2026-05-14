@@ -964,7 +964,7 @@ with col_chat:
     st.subheader("Assistant")
 
     for msg_item in st.session_state["chat_history"]:
-        role_label = "You" if msg_item["role"] == "user" else "Opossum"
+        role_label = "You" if msg_item["role"] == "user" else "Agent"
         with st.chat_message(msg_item["role"]):
             st.markdown(f"**{role_label}:** {msg_item['content']}")
 
