@@ -585,7 +585,11 @@ Actions:
 - "clear":    remove ALL layers from the map
 - "poi":      search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
 - "geocode":  locate and pin a specific address or place on the map
-- "dengue":   display a dengue case choropleth map by census sector
+- "dengue":   display a dengue case choropleth map by census sector.
+              Triggered by: "dengue map", "show dengue", "mapa dengue",
+              "dengue cases", "casos de dengue", "how are the dengue cases",
+              "dengue situation", "situação da dengue", "dengue in [location]",
+              "dengue no DF", "dengue distribution", "where is dengue"
 - "risco":    display geological risk areas on the map (CPRM data).
               Triggered by: "risk zones", "geological risk", "landslide", "risco geológico",
               "deslizamento", "áreas de risco", "risk areas", "enxurrada", "voçoroca",
@@ -741,8 +745,21 @@ def execute_command(parsed, lang="en"):
         gj = attach_dengue_to_geojson()
         st.session_state["dengue_layer"] = gj
         st.session_state["map_center"]   = [-15.793889, -47.882778]
-        return msg("🦟 Dengue case map loaded by census sector.",
-                   "🦟 Mapa de casos de dengue carregado por setor censitário.")
+        df  = load_dengue_data()
+        total = len(df)
+        confirmed = len(df[df["i_desc_classificacao"].str.contains("Dengue", na=False)])
+        alarm = len(df[df["i_desc_classificacao"] == "Dengue com sinais de alarme"])
+        deaths = len(df[df["i_desc_evolucao"] == "Óbito pelo agravo notificado"])
+        return msg(
+            f"🦟 Dengue map loaded for 2026. "
+            f"The DF has **{total:,} notified cases**, of which **{confirmed}** are confirmed dengue "
+            f"({alarm} with warning signs) and **{deaths} death(s)** recorded. "
+            f"Distribution by census sector is now visible on the map.",
+            f"🦟 Mapa de dengue carregado para 2026. "
+            f"O DF registra **{total:,} casos notificados**, dos quais **{confirmed}** são dengue confirmada "
+            f"({alarm} com sinais de alarme) e **{deaths} óbito(s)**. "
+            f"A distribuição por setor censitário está visível no mapa.",
+        )
 
     if action == "risco":
         gj = load_risco_geologico()
