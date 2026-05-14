@@ -184,7 +184,12 @@ def load_queimadas():
         return json.load(f)
 
 def aggregate_dengue_by_sector(df):
-    return df.groupby("cd_setor")["casos"].sum().reset_index()
+    return (
+        df.groupby("i_desc_estab_cnes_notif")
+        .size()
+        .reset_index(name="casos")
+        .rename(columns={"i_desc_estab_cnes_notif": "estab"})
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -192,10 +197,33 @@ def attach_dengue_to_geojson():
     gj, by_code, _ = load_geojson()
     df  = load_dengue_data()
     agg = aggregate_dengue_by_sector(df)
-    dengue_map = dict(zip(agg["cd_setor"], agg["casos"]))
+
+    ubs = load_ubs_df()
+    agg["estab_norm"] = agg["estab"].apply(_norm)
+    ubs["nome_norm2"] = ubs["nome"].apply(_norm)
+
+    estab_map = dict(zip(agg["estab_norm"], agg["casos"]))
+
     for feat in gj["features"]:
-        code = feat["properties"].get("CD_SETOR")
-        feat["properties"]["dengue_casos"] = int(dengue_map.get(code, 0))
+        feat["properties"]["dengue_casos"] = 0
+
+    # coloca os casos nas UBSs que conseguir cruzar
+    for _, row in ubs.iterrows():
+        nome_n = row["nome_norm2"]
+        casos  = estab_map.get(nome_n, 0)
+        # fuzzy: tenta substring match se exact falhar
+        if casos == 0:
+            for estab_n, c in estab_map.items():
+                if nome_n in estab_n or estab_n in nome_n:
+                    casos = c
+                    break
+        # injeta no setor censitário mais próximo via bairro
+        bairro_n = _norm(row.get("bairro", ""))
+        for feat in gj["features"]:
+            if _norm(feat["properties"].get("NM_SUBDIST", "")) == bairro_n:
+                feat["properties"]["dengue_casos"] += casos
+                break
+
     return gj
 
 
