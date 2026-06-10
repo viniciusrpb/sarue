@@ -31,26 +31,39 @@ QUEIMADA_COLORS = {
 }
 
 RA_BBOX = {
-    "asa norte":          "-15.775,-47.920,-15.710,-47.870",
-    "asa sul":            "-15.840,-47.930,-15.775,-47.870",
-    "taguatinga":         "-15.870,-48.080,-15.790,-48.020",
-    "ceilandia":          "-15.850,-48.130,-15.760,-48.060",
-    "samambaia":          "-15.900,-48.120,-15.840,-48.050",
-    "gama":               "-16.060,-48.090,-15.990,-47.990",
-    "sobradinho":         "-15.660,-47.870,-15.590,-47.790",
-    "planaltina":         "-15.650,-47.680,-15.560,-47.590",
-    "brazlandia":         "-15.730,-48.230,-15.650,-48.140",
-    "paranoa":            "-15.740,-47.780,-15.660,-47.720",
-    "nucleo bandeirante": "-15.880,-47.990,-15.840,-47.940",
-    "guara":              "-15.840,-47.990,-15.790,-47.940",
-    "cruzeiro":           "-15.800,-47.970,-15.760,-47.930",
-    "lago norte":         "-15.730,-47.880,-15.680,-47.820",
-    "lago sul":           "-15.870,-47.870,-15.820,-47.810",
-    "aguas claras":       "-15.880,-48.040,-15.840,-47.990",
-    "riacho fundo":       "-15.910,-48.040,-15.870,-47.990",
-    "vicente pires":      "-15.840,-48.070,-15.790,-48.020",
-    "itapoa":             "-15.720,-47.780,-15.670,-47.740",
-    "estrutural":         "-15.790,-48.030,-15.760,-47.990",
+    "arniqueira":              "-15.878,-48.033,-15.841,-47.987",
+    "brazlândia":              "-15.771,-48.241,-15.502,-48.017",
+    "candangolândia":          "-15.875,-47.959,-15.841,-47.932",
+    "ceilândia":               "-15.933,-48.286,-15.748,-48.088",
+    "cruzeiro":                "-15.806,-47.946,-15.777,-47.929",
+    "fercal":                  "-15.620,-47.976,-15.502,-47.761",
+    "gama":                    "-16.050,-48.279,-15.932,-48.005",
+    "guará":                   "-15.864,-48.005,-15.800,-47.949",
+    "itapoã":                  "-15.763,-47.792,-15.713,-47.675",
+    "jardim botânico":         "-16.050,-47.908,-15.796,-47.707",
+    "lago norte":              "-15.791,-47.923,-15.681,-47.784",
+    "lago sul":                "-15.914,-47.956,-15.792,-47.786",
+    "núcleo bandeirante":      "-15.884,-48.000,-15.848,-47.955",
+    "paranoá":                 "-16.050,-47.813,-15.727,-47.308",
+    "park way":                "-15.984,-48.021,-15.818,-47.887",
+    "planaltina":              "-15.873,-47.781,-15.502,-47.312",
+    "plano piloto":            "-15.859,-48.090,-15.578,-47.784",
+    "recanto das emas":        "-15.978,-48.261,-15.882,-48.038",
+    "riacho fundo":            "-15.925,-48.043,-15.874,-47.979",
+    "riacho fundo ii":         "-15.966,-48.060,-15.874,-47.983",
+    "scia":                    "-15.796,-48.007,-15.754,-47.966",
+    "sia":                     "-15.810,-47.992,-15.740,-47.917",
+    "samambaia":               "-15.937,-48.259,-15.844,-48.037",
+    "santa maria":             "-16.050,-48.054,-15.969,-47.869",
+    "sobradinho":              "-15.734,-47.859,-15.523,-47.673",
+    "sobradinho ii":           "-15.689,-48.044,-15.502,-47.809",
+    "sol nascente/pôr do sol": "-15.868,-48.191,-15.794,-48.107",
+    "sudoeste/octogonal":      "-15.811,-47.949,-15.780,-47.908",
+    "são sebastião":           "-16.050,-47.807,-15.875,-47.588",
+    "taguatinga":              "-15.876,-48.112,-15.737,-48.026",
+    "varjão":                  "-15.719,-47.892,-15.701,-47.868",
+    "vicente pires":           "-15.832,-48.056,-15.752,-47.990",
+    "águas claras":            "-15.851,-48.050,-15.815,-48.001",
 }
 
 def _bbox_center(bbox_str):
@@ -252,7 +265,9 @@ def aggregate_dengue_by_sector(df):
 
 @st.cache_data(show_spinner=False)
 def attach_dengue_to_sectors(ra_name):
-    """Attach dengue case counts to individual census sectors of a single RA."""
+    """Attach dengue case counts to individual census sectors of a single RA,
+    matched by NM_SUBDIST (which equals the RA name in setoresDF.json)."""
+    import copy
     gj, by_code, by_subdist = load_geojson()
     df  = load_dengue_data()
     agg = aggregate_dengue_by_sector(df)
@@ -261,12 +276,12 @@ def attach_dengue_to_sectors(ra_name):
     ubs["nome_norm2"] = ubs["nome"].apply(_norm)
     estab_map = dict(zip(agg["estab_norm"], agg["casos"]))
 
-    # Filter sectors belonging to this RA
+    # NM_SUBDIST == RA name — direct match (deep-copy to avoid mutating cache)
     ra_n = _norm(ra_name)
     ra_features = [
-        feat for feats in by_subdist.values() for feat in feats
-        if ra_n in _norm(feat["properties"].get("NM_SUBDIST", ""))
-        or _norm(feat["properties"].get("NM_SUBDIST", "")) in ra_n
+        copy.deepcopy(feat)
+        for key, feats in by_subdist.items() for feat in feats
+        if ra_n in _norm(key) or _norm(key) in ra_n
     ]
 
     for feat in ra_features:
@@ -1313,24 +1328,26 @@ with col_map:
 
     if "dengue_layer" in st.session_state:
         dengue_mode = st.session_state.get("dengue_mode", "ra")
-        if dengue_mode == "ra":
-            tooltip_fields  = ["ra", "dengue_casos"]
-            tooltip_aliases = ["Região:", "Casos:"]
-        else:
-            tooltip_fields  = ["NM_SUBDIST", "dengue_casos"]
-            tooltip_aliases = ["Subdistrito:", "Casos:"]
-        folium.GeoJson(
-            st.session_state["dengue_layer"],
-            name="Dengue 2026",
-            style_function=lambda feature: {
-                "fillColor": get_dengue_color(feature["properties"]["dengue_casos"]),
-                "color": "black", "weight": 0.3, "fillOpacity": 0.7,
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=tooltip_fields,
-                aliases=tooltip_aliases,
-            ),
-        ).add_to(m)
+        dengue_feats = st.session_state["dengue_layer"].get("features", [])
+        if dengue_feats:
+            if dengue_mode == "ra":
+                tooltip_fields  = ["ra", "dengue_casos"]
+                tooltip_aliases = ["Região:", "Casos:"]
+            else:
+                tooltip_fields  = ["NM_SUBDIST", "dengue_casos"]
+                tooltip_aliases = ["Subdistrito:", "Casos:"]
+            folium.GeoJson(
+                st.session_state["dengue_layer"],
+                name="Dengue 2026",
+                style_function=lambda feature: {
+                    "fillColor": get_dengue_color(feature["properties"]["dengue_casos"]),
+                    "color": "black", "weight": 0.3, "fillOpacity": 0.7,
+                },
+                tooltip=folium.GeoJsonTooltip(
+                    fields=tooltip_fields,
+                    aliases=tooltip_aliases,
+                ),
+            ).add_to(m)
 
     if "risco_layer" in st.session_state:
         folium.GeoJson(
