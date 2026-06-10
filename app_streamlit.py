@@ -900,7 +900,66 @@ Rules:
         return {"action": "none", "target": "", "area": None, "category": None}
 
 
-def execute_command(parsed, lang="en"):
+def has_map_intent(text):
+    """Return True if the query explicitly requests map drawing or implicitly
+    implies spatial lookup (proximity, listing, location of facilities)."""
+    t = _norm(text)
+
+    # Explicit drawing / visualisation verbs
+    explicit = [
+        "desenh", "mostr", "renderiz", "exib", "destac", "plot", "mapeie", "mapa",
+        "draw", "show", "render", "display", "highlight", "map", "visuali",
+    ]
+    # Implicit spatial-lookup patterns
+    implicit = [
+        "próxim", "perto", "mais perto", "mais próxim", "próximo a", "perto de",
+        "near", "nearby", "closest", "nearest", "around",
+        "quais .{0,30} exist", "onde fica", "onde estão", "onde há", "onde tem",
+        "where is", "where are", "where can i find",
+        "lista .{0,20} em", "list .{0,20} in",
+    ]
+
+    if any(kw in t for kw in explicit):
+        return True
+    if any(re.search(pat, t) for pat in implicit):
+        return True
+    return False
+
+
+def match_facilities_from_entities(entities):
+    """Given NER entities, search the local UBS database for matching facilities.
+    Returns a list of POI dicts (name, lat, lon, address, phone) or empty list."""
+    ubs = load_ubs_df()
+    terms = [
+        _norm(e)
+        for e in entities.get("organizations", []) + entities.get("locations", [])
+        if e
+    ]
+    if not terms:
+        return []
+
+    matched = set()
+    pois = []
+    for term in terms:
+        hits = ubs[
+            ubs["nome_norm"].str.contains(term, na=False) |
+            ubs["bairro_norm"].str.contains(term, na=False)
+        ]
+        for _, row in hits.iterrows():
+            key = row["nome_norm"]
+            if key not in matched:
+                matched.add(key)
+                pois.append({
+                    "name":    row["nome"].title(),
+                    "lat":     row["latitude"],
+                    "lon":     row["longitude"],
+                    "address": row.get("logradouro", ""),
+                    "phone":   "",
+                })
+    return pois
+
+
+
     action   = parsed.get("action",   "none")
     target   = parsed.get("target",   "") or ""
     area     = parsed.get("area",     None)
@@ -1264,39 +1323,55 @@ with col_chat:
 
             if response is None:
                 response, localidades, entities = answer_health_question(user_msg, lang=lang)
-                entidades_loc = set(entities["locations"])
-                if entidades_loc:
-                    localidades = {
-                        loc for loc in localidades
-                        if any(e in _norm(loc) or _norm(loc) in e for e in entidades_loc)
-                    }
-                last_lats, last_lons = [], []
-                for loc in localidades:
-                    ra_gj = load_ra_geojson()
-                    loc_n = _norm(loc)
-                    matched_ra = [
-                        f for f in ra_gj["features"]
-                        if loc_n in _norm(f["properties"]["ra"])
-                        or _norm(f["properties"]["ra"]) in loc_n
-                    ]
-                    if matched_ra:
-                        ra_label = matched_ra[0]["properties"]["ra"]
-                        color = next_poly_color()
-                        st.session_state["ra_layers"][ra_label] = {
-                            "features": matched_ra, "color": color,
+
+                if has_map_intent(user_msg):
+                    # ── Pin facilities found in the local UBS database ────────
+                    facility_pois = match_facilities_from_entities(entities)
+                    if facility_pois:
+                        layer_label = "🏥 Unidades mencionadas"
+                        st.session_state["poi_layers"][layer_label] = {
+                            "pois": facility_pois, "icon": "🏥", "color": "blue"
                         }
-                        geom = matched_ra[0]["geometry"]
-                        polys = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
-                        for poly in polys:
-                            for ring in poly:
-                                for lon, lat in ring:
-                                    last_lats.append(lat)
-                                    last_lons.append(lon)
-                if last_lats:
-                    st.session_state["map_center"] = [
-                        sum(last_lats) / len(last_lats),
-                        sum(last_lons) / len(last_lons),
-                    ]
+                        lats = [p["lat"] for p in facility_pois]
+                        lons = [p["lon"] for p in facility_pois]
+                        st.session_state["map_center"] = [
+                            sum(lats) / len(lats), sum(lons) / len(lons)
+                        ]
+
+                    # ── Highlight RAs mentioned in retrieved documents ─────────
+                    entidades_loc = set(entities["locations"])
+                    if entidades_loc:
+                        localidades = {
+                            loc for loc in localidades
+                            if any(e in _norm(loc) or _norm(loc) in e for e in entidades_loc)
+                        }
+                    last_lats, last_lons = [], []
+                    for loc in localidades:
+                        ra_gj = load_ra_geojson()
+                        loc_n = _norm(loc)
+                        matched_ra = [
+                            f for f in ra_gj["features"]
+                            if loc_n in _norm(f["properties"]["ra"])
+                            or _norm(f["properties"]["ra"]) in loc_n
+                        ]
+                        if matched_ra:
+                            ra_label = matched_ra[0]["properties"]["ra"]
+                            color = next_poly_color()
+                            st.session_state["ra_layers"][ra_label] = {
+                                "features": matched_ra, "color": color,
+                            }
+                            geom = matched_ra[0]["geometry"]
+                            polys = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+                            for poly in polys:
+                                for ring in poly:
+                                    for lon, lat in ring:
+                                        last_lats.append(lat)
+                                        last_lons.append(lon)
+                    if last_lats:
+                        st.session_state["map_center"] = [
+                            sum(last_lats) / len(last_lats),
+                            sum(last_lons) / len(last_lons),
+                        ]
 
         st.session_state["chat_history"].append({"role": "assistant", "content": response})
         st.rerun()
