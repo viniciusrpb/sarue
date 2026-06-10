@@ -183,27 +183,10 @@ def get_subdist_list():
 
 @st.cache_data(show_spinner=False)
 def load_ra_geojson():
-    """Build one MultiPolygon feature per Administrative Region (NM_SUBDIST)
-    by grouping all census-sector polygons that share the same RA name.
-    No external geometry library required."""
-    _, _, by_subdist = load_geojson()
-    features = []
-    for subdist, feats in by_subdist.items():
-        all_polys = []
-        for feat in feats:
-            geom = feat["geometry"]
-            if geom["type"] == "Polygon":
-                all_polys.append(geom["coordinates"])
-            elif geom["type"] == "MultiPolygon":
-                all_polys.extend(geom["coordinates"])
-        if not all_polys:
-            continue
-        features.append({
-            "type": "Feature",
-            "properties": {"NM_SUBDIST": subdist.title()},
-            "geometry": {"type": "MultiPolygon", "coordinates": all_polys},
-        })
-    return {"type": "FeatureCollection", "features": features}
+    """Load Administrative Regions (Regiões Administrativas) from rasDF.json."""
+    path = os.path.join(os.path.dirname(__file__), "database", "rasDF.json")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 @st.cache_data(show_spinner=False)
@@ -766,7 +749,8 @@ def detect_language(text):
 
 
 def parse_command(user_text):
-    subdist_str  = ", ".join(get_subdist_list())
+    ra_gj        = load_ra_geojson()
+    ra_names_str = ", ".join(sorted(f["properties"]["ra"] for f in ra_gj["features"]))
     poi_cats_str = ", ".join(sorted({_norm(k) for k in OSM_CATEGORIES}))
 
     system = f"""You are the map control agent for the Opossum app (Fiocruz Brasília, DF, Brazil).
@@ -803,7 +787,7 @@ Actions:
               If the user mentions a specific region/neighbourhood, set "area" to that region name.
 - "none":     public health question or topic unrelated to map control
 
-Available RAs (Portuguese names): {subdist_str}
+Available RAs (Portuguese names): {ra_names_str}
 Available POI categories: {poi_cats_str}
 
 Response format:
@@ -883,13 +867,13 @@ def execute_command(parsed, lang="en"):
                    f"⚠️ Nenhuma camada chamada **{target}** encontrada no mapa.")
 
     if action == "draw":
-        # Highlight the RA boundary (RA-level polygon, not individual census sectors)
+        # Highlight the RA boundary polygon
         ra_gj = load_ra_geojson()
         ra_norm = _norm(target)
         matched = [
             f for f in ra_gj["features"]
-            if ra_norm in _norm(f["properties"]["NM_SUBDIST"])
-            or _norm(f["properties"]["NM_SUBDIST"]) in ra_norm
+            if ra_norm in _norm(f["properties"]["ra"])
+            or _norm(f["properties"]["ra"]) in ra_norm
         ]
         if not matched:
             return msg(
@@ -898,7 +882,7 @@ def execute_command(parsed, lang="en"):
                 f"⚠️ Nenhuma Região Administrativa encontrada para **{target}**.\n"
                 "Tente um nome da lista (ex: Ceilândia, Taguatinga, Asa Norte).",
             )
-        label = matched[0]["properties"]["NM_SUBDIST"]
+        label = matched[0]["properties"]["ra"]
         color = next_poly_color()
         st.session_state["ra_layers"][label] = {"features": matched, "color": color}
         # Centre map on RA bbox
@@ -915,7 +899,7 @@ def execute_command(parsed, lang="en"):
                 sum(all_lats) / len(all_lats), sum(all_lons) / len(all_lons)]
         return msg(
             f"✅ **{label}** highlighted on the map.\n"
-            "_To see individual census sectors, type 'show census sectors of {label}'._",
+            f"_To see individual census sectors, type 'show census sectors of {label}'._",
             f"✅ **{label}** destacada no mapa.\n"
             f"_Para ver os setores censitários individuais, digite 'mostrar setores censitários de {label}'._",
         )
@@ -1185,11 +1169,11 @@ with col_chat:
                     loc_n = _norm(loc)
                     matched_ra = [
                         f for f in ra_gj["features"]
-                        if loc_n in _norm(f["properties"]["NM_SUBDIST"])
-                        or _norm(f["properties"]["NM_SUBDIST"]) in loc_n
+                        if loc_n in _norm(f["properties"]["ra"])
+                        or _norm(f["properties"]["ra"]) in loc_n
                     ]
                     if matched_ra:
-                        ra_label = matched_ra[0]["properties"]["NM_SUBDIST"]
+                        ra_label = matched_ra[0]["properties"]["ra"]
                         color = next_poly_color()
                         st.session_state["ra_layers"][ra_label] = {
                             "features": matched_ra, "color": color,
@@ -1242,7 +1226,11 @@ with col_map:
     center = st.session_state["map_center"]
     m = folium.Map(location=center, zoom_start=11, tiles=None)
 
-    folium.TileLayer(tiles="CartoDB positron",  name="Street map", control=True).add_to(m)
+    folium.TileLayer(
+        tiles="https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attr='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        name="OpenStreetMap", control=True,
+    ).add_to(m)
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",
         attr="Tiles © Esri", name="Relief", control=True,
@@ -1302,23 +1290,6 @@ with col_map:
             ),
         ).add_to(m)
 
-    # ── Base layer: Administrative Regions (always visible) ───────────────
-    base_ra_gj = load_ra_geojson()
-    folium.GeoJson(
-        base_ra_gj,
-        name="Regiões Administrativas",
-        style_function=lambda _: {
-            "fillColor": "transparent",
-            "color": "#555555",
-            "weight": 1.5,
-            "fillOpacity": 0,
-        },
-        tooltip=folium.GeoJsonTooltip(
-            fields=["NM_SUBDIST"],
-            aliases=["Região:"],
-        ),
-    ).add_to(m)
-
     # ── Highlighted RA polygons (from "draw" command) ──────────────────────
     for label, layer in st.session_state["ra_layers"].items():
         color   = layer["color"]
@@ -1329,7 +1300,7 @@ with col_map:
                 "fillColor": c, "color": c, "weight": 2.5, "fillOpacity": 0.25,
             },
             tooltip=folium.GeoJsonTooltip(
-                fields=["NM_SUBDIST"],
+                fields=["ra"],
                 aliases=["Região:"],
             ),
         ).add_to(m)
