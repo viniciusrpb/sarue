@@ -558,12 +558,41 @@ def _rerank(dense_docs, bm25_docs, entities, top_k=6):
     return [item["doc"] for item in ranked[:top_k]]
 
 
+@st.cache_data(show_spinner=False, ttl=3600)
+def translate_to_pt(text):
+    """Translate any text to Brazilian Portuguese for corpus retrieval.
+    Returns the original text unchanged if already in Portuguese."""
+    resp = client.chat.completions.create(
+        model="qwen/qwen3-32b",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Translate the user message to Brazilian Portuguese. "
+                    "If it is already in Portuguese, return it unchanged. "
+                    "Return ONLY the translated text, no explanation, no markdown."
+                ),
+            },
+            {"role": "user", "content": f"/no_think {text}"},
+        ],
+        temperature=0.0,
+        max_tokens=300,
+    )
+    result = resp.choices[0].message.content.strip()
+    result = re.sub(r"<think>.*?</think>", "", result, flags=re.DOTALL).strip()
+    return result
+
+
 def answer_health_question(pergunta, lang="en"):
     dense_retriever, bm25, chunks = setup_retriever()
-    entities   = extract_entities(pergunta)
-    dense_docs = dense_retriever.invoke(pergunta)
+    entities = extract_entities(pergunta)
 
-    query_terms = pergunta.lower().split()
+    # Translate to Portuguese for retrieval against the Portuguese corpus
+    pergunta_pt = translate_to_pt(pergunta) if lang == "en" else pergunta
+
+    dense_docs = dense_retriever.invoke(pergunta_pt)
+
+    query_terms = pergunta_pt.lower().split()
     for e in entities["locations"] + entities["organizations"] + entities["events"]:
         query_terms += e.split()
     bm25_scores  = bm25.get_scores(query_terms)
