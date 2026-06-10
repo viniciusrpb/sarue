@@ -832,7 +832,8 @@ Actions:
 - "dengue":       display a dengue case choropleth map.
                   Triggered by: "show dengue map", "dengue map", "mapa dengue",
                   "show me dengue", "visualize dengue", and similar.
-                  If the user mentions a specific region/neighbourhood, set "target" to that region name; otherwise null.
+                  If the user mentions a specific RA name (from the list above), set "target" to that RA name.
+                  If the user mentions only "Brasília", "DF", "Distrito Federal", or the whole city/country, set "target" to null.
 - "dengue_query": answer analytical questions about dengue data.
                   Triggered by: "how many cases", "which region has more",
                   "worst region", "most affected", "dengue situation",
@@ -1039,6 +1040,12 @@ def execute_command(parsed, lang="en"):
 
     if action == "dengue":
         region = target or area or None
+
+        # "Brasília", "Brasilia", "DF", "Distrito Federal" all mean the whole DF
+        DF_ALIASES = {"brasilia", "brasília", "df", "distrito federal", "federal district"}
+        if region and _norm(region) in DF_ALIASES:
+            region = None
+
         df = load_dengue_data()
         total     = len(df)
         confirmed = len(df[df["i_desc_classificacao"].str.contains("Dengue", na=False)])
@@ -1082,6 +1089,8 @@ def execute_command(parsed, lang="en"):
     if action == "risco":
         gj_full = load_risco_geologico()
         region = target or area or None
+        if region and _norm(region) in {"brasilia", "brasília", "df", "distrito federal", "federal district"}:
+            region = None
         if region:
             gj, bbox_str = filter_geojson_by_region(gj_full, region)
             if bbox_str:
@@ -1107,6 +1116,8 @@ def execute_command(parsed, lang="en"):
     if action == "queimada":
         gj_full = load_queimadas()
         region = target or area or None
+        if region and _norm(region) in {"brasilia", "brasília", "df", "distrito federal", "federal district"}:
+            region = None
         if region:
             gj, bbox_str = filter_geojson_by_region(gj_full, region)
             if bbox_str:
@@ -1131,6 +1142,8 @@ def execute_command(parsed, lang="en"):
 
     if action == "dengue_query":
         region = target or area or None
+        if region and _norm(region) in {"brasilia", "brasília", "df", "distrito federal", "federal district"}:
+            region = None
         s = get_dengue_summary(region=region)
 
         scope_en = f"in **{s['region_label']}**" if s.get("region_label") else "in the **Distrito Federal**"
