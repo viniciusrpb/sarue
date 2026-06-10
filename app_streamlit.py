@@ -251,21 +251,31 @@ def aggregate_dengue_by_sector(df):
 
 
 @st.cache_data(show_spinner=False)
-def attach_dengue_to_geojson():
-    gj, by_code, _ = load_geojson()
+def attach_dengue_to_sectors(ra_name):
+    """Attach dengue case counts to individual census sectors of a single RA."""
+    gj, by_code, by_subdist = load_geojson()
     df  = load_dengue_data()
     agg = aggregate_dengue_by_sector(df)
-
     ubs = load_ubs_df()
     agg["estab_norm"] = agg["estab"].apply(_norm)
     ubs["nome_norm2"] = ubs["nome"].apply(_norm)
-
     estab_map = dict(zip(agg["estab_norm"], agg["casos"]))
 
-    for feat in gj["features"]:
+    # Filter sectors belonging to this RA
+    ra_n = _norm(ra_name)
+    ra_features = [
+        feat for feats in by_subdist.values() for feat in feats
+        if ra_n in _norm(feat["properties"].get("NM_SUBDIST", ""))
+        or _norm(feat["properties"].get("NM_SUBDIST", "")) in ra_n
+    ]
+
+    for feat in ra_features:
         feat["properties"]["dengue_casos"] = 0
 
     for _, row in ubs.iterrows():
+        bairro_n = _norm(row.get("bairro", ""))
+        if ra_n not in bairro_n and bairro_n not in ra_n:
+            continue
         nome_n = row["nome_norm2"]
         casos  = estab_map.get(nome_n, 0)
         if casos == 0:
@@ -273,13 +283,50 @@ def attach_dengue_to_geojson():
                 if nome_n in estab_n or estab_n in nome_n:
                     casos = c
                     break
-        bairro_n = _norm(row.get("bairro", ""))
-        for feat in gj["features"]:
+        for feat in ra_features:
             if _norm(feat["properties"].get("NM_SUBDIST", "")) == bairro_n:
                 feat["properties"]["dengue_casos"] += casos
                 break
 
-    return gj
+    return {"type": "FeatureCollection", "features": ra_features}
+
+
+@st.cache_data(show_spinner=False)
+def attach_dengue_to_ra():
+    """Attach dengue case counts to Administrative Region polygons (rasDF.json)."""
+    ra_gj = load_ra_geojson()
+    df    = load_dengue_data()
+    agg   = aggregate_dengue_by_sector(df)
+    ubs   = load_ubs_df()
+    agg["estab_norm"] = agg["estab"].apply(_norm)
+    ubs["nome_norm2"] = ubs["nome"].apply(_norm)
+    estab_map = dict(zip(agg["estab_norm"], agg["casos"]))
+
+    # Map UBS bairro → caso count
+    bairro_casos: dict = {}
+    for _, row in ubs.iterrows():
+        bairro_n = _norm(row.get("bairro", ""))
+        nome_n   = row["nome_norm2"]
+        casos    = estab_map.get(nome_n, 0)
+        if casos == 0:
+            for estab_n, c in estab_map.items():
+                if nome_n in estab_n or estab_n in nome_n:
+                    casos = c
+                    break
+        bairro_casos[bairro_n] = bairro_casos.get(bairro_n, 0) + casos
+
+    # Aggregate bairro counts into RAs using RA_BBOX name matching
+    import copy
+    ra_gj_copy = copy.deepcopy(ra_gj)
+    for feat in ra_gj_copy["features"]:
+        ra_n  = _norm(feat["properties"]["ra"])
+        total = sum(
+            casos for bairro_n, casos in bairro_casos.items()
+            if ra_n in bairro_n or bairro_n in ra_n
+        )
+        feat["properties"]["dengue_casos"] = total
+
+    return ra_gj_copy
 
 
 @st.cache_data(show_spinner=False)
@@ -767,9 +814,10 @@ Actions:
 - "clear":    remove ALL layers from the map
 - "poi":      search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
 - "geocode":  locate and pin a specific address or place on the map
-- "dengue":       display a dengue case choropleth map by census sector.
+- "dengue":       display a dengue case choropleth map.
                   Triggered by: "show dengue map", "dengue map", "mapa dengue",
-                  "show me dengue", "visualize dengue"
+                  "show me dengue", "visualize dengue", and similar.
+                  If the user mentions a specific region/neighbourhood, set "target" to that region name; otherwise null.
 - "dengue_query": answer analytical questions about dengue data.
                   Triggered by: "how many cases", "which region has more",
                   "worst region", "most affected", "dengue situation",
@@ -975,23 +1023,45 @@ def execute_command(parsed, lang="en"):
         )
 
     if action == "dengue":
-        gj = attach_dengue_to_geojson()
-        st.session_state["dengue_layer"] = gj
-        st.session_state["map_center"]   = [-15.793889, -47.882778]
-        df  = load_dengue_data()
-        total = len(df)
+        region = target or area or None
+        df = load_dengue_data()
+        total     = len(df)
         confirmed = len(df[df["i_desc_classificacao"].str.contains("Dengue", na=False)])
-        alarm = len(df[df["i_desc_classificacao"] == "Dengue com sinais de alarme"])
-        deaths = len(df[df["i_desc_evolucao"] == "Óbito pelo agravo notificado"])
+        alarm     = len(df[df["i_desc_classificacao"] == "Dengue com sinais de alarme"])
+        deaths    = len(df[df["i_desc_evolucao"] == "Óbito pelo agravo notificado"])
+
+        if region:
+            # Sector-level choropleth for a single RA
+            gj = attach_dengue_to_sectors(region)
+            st.session_state["dengue_layer"] = gj
+            st.session_state["dengue_mode"]  = "sector"
+            # Centre on RA
+            bbox_str = None
+            for key, val in RA_BBOX.items():
+                if _norm(region) in key or key in _norm(region):
+                    bbox_str = val
+                    break
+            if bbox_str:
+                center_lat, center_lon = _bbox_center(bbox_str)
+                st.session_state["map_center"] = [center_lat, center_lon]
+            scope_en = f" in **{region.title()}**"
+            scope_pt = f" em **{region.title()}**"
+        else:
+            # RA-level choropleth for the whole DF
+            gj = attach_dengue_to_ra()
+            st.session_state["dengue_layer"] = gj
+            st.session_state["dengue_mode"]  = "ra"
+            st.session_state["map_center"]   = [-15.793889, -47.882778]
+            scope_en = " for the **Distrito Federal**"
+            scope_pt = " para o **Distrito Federal**"
+
         return msg(
-            f"🦟 Dengue map loaded for 2026. "
-            f"The DF has **{total:,} notified cases**, of which **{confirmed}** are confirmed dengue "
-            f"({alarm} with warning signs) and **{deaths} death(s)** recorded. "
-            f"Distribution by census sector is now visible on the map.",
-            f"🦟 Mapa de dengue carregado para 2026. "
-            f"O DF registra **{total:,} casos notificados**, dos quais **{confirmed}** são dengue confirmada "
-            f"({alarm} com sinais de alarme) e **{deaths} óbito(s)**. "
-            f"A distribuição por setor censitário está visível no mapa.",
+            f"🦟 Dengue map loaded{scope_en} — 2026. "
+            f"**{total:,}** notified cases, **{confirmed}** confirmed "
+            f"({alarm} with warning signs), **{deaths}** death(s).",
+            f"🦟 Mapa de dengue carregado{scope_pt} — 2026. "
+            f"**{total:,}** casos notificados, **{confirmed}** confirmados "
+            f"({alarm} com sinais de alarme), **{deaths}** óbito(s).",
         )
 
     if action == "risco":
@@ -1128,6 +1198,7 @@ if "poi_layers"    not in st.session_state: st.session_state["poi_layers"]    = 
 if "pin_layers"    not in st.session_state: st.session_state["pin_layers"]    = {}
 if "map_center"    not in st.session_state: st.session_state["map_center"]    = [-15.793889, -47.882778]
 if "chat_history"  not in st.session_state: st.session_state["chat_history"]  = []
+if "dengue_mode"   not in st.session_state: st.session_state["dengue_mode"]   = "ra"
 
 col_chat, col_map = st.columns([1, 1])
 
@@ -1241,6 +1312,13 @@ with col_map:
     ).add_to(m)
 
     if "dengue_layer" in st.session_state:
+        dengue_mode = st.session_state.get("dengue_mode", "ra")
+        if dengue_mode == "ra":
+            tooltip_fields  = ["ra", "dengue_casos"]
+            tooltip_aliases = ["Região:", "Casos:"]
+        else:
+            tooltip_fields  = ["NM_SUBDIST", "dengue_casos"]
+            tooltip_aliases = ["Subdistrito:", "Casos:"]
         folium.GeoJson(
             st.session_state["dengue_layer"],
             name="Dengue 2026",
@@ -1249,8 +1327,8 @@ with col_map:
                 "color": "black", "weight": 0.3, "fillOpacity": 0.7,
             },
             tooltip=folium.GeoJsonTooltip(
-                fields=["NM_SUBDIST", "dengue_casos"],
-                aliases=["Região:", "Casos:"],
+                fields=tooltip_fields,
+                aliases=tooltip_aliases,
             ),
         ).add_to(m)
 
@@ -1300,8 +1378,9 @@ with col_map:
                 "fillColor": c, "color": c, "weight": 2.5, "fillOpacity": 0.25,
             },
             tooltip=folium.GeoJsonTooltip(
-                fields=["ra"],
-                aliases=["Região:"],
+                fields=["legenda"],
+                aliases=[""],
+                style="font-size: 13px; font-weight: bold;",
             ),
         ).add_to(m)
 
