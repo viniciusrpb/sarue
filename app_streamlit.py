@@ -959,7 +959,7 @@ def match_facilities_from_entities(entities):
     return pois
 
 
-
+def execute_command(parsed, lang="en"):
     action   = parsed.get("action",   "none")
     target   = parsed.get("target",   "") or ""
     area     = parsed.get("area",     None)
