@@ -828,6 +828,9 @@ Actions:
 - "remove":   remove a specific layer from the map
 - "clear":    remove ALL layers from the map
 - "poi":      search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
+              ONLY when the user wants to FIND or LOCATE facilities on the map
+              (e.g. "show hospitals in Ceilândia", "where are the pharmacies near me").
+              NOT for questions about how a service works, its coverage, schedules, or procedures.
 - "geocode":  locate and pin a specific address or place on the map
 - "dengue":       display a dengue case choropleth map.
                   Triggered by: "show dengue map", "dengue map", "mapa dengue",
@@ -849,7 +852,10 @@ Actions:
               Triggered by: "burned areas", "fire", "queimadas", "incêndio", "áreas queimadas",
               "wildfires", "queimou", "fogo"
               If the user mentions a specific region/neighbourhood, set "area" to that region name.
-- "none":     public health question or topic unrelated to map control
+- "none":     ANY question about public health topics, services, policies, or information —
+              including questions about how a unit works, its coverage area, opening hours,
+              referral procedures, target populations, or specific health programmes.
+              When in doubt between "poi" and "none", choose "none".
 
 Available RAs (Portuguese names): {ra_names_str}
 Available POI categories: {poi_cats_str}
@@ -865,13 +871,15 @@ Response format:
 
 Rules:
 - "draw" shows RA-level boundaries; "setor" reveals the finer census-sector grid — only on explicit user request.
+- "poi" requires an explicit intent to LOCATE something on the map. Questions that merely mention
+  a health facility by name (e.g. "Como funciona o Cerest?", "Qual a cobertura do CAPS?",
+  "O CRE Oeste atende Brazlândia?") are ALWAYS "none", never "poi".
 - Questions about geological risks, landslides, floods, burned areas, or fire are ALWAYS
   "risco" or "queimada" actions, NEVER "none".
 - "near [location]" + risk/fire topic = "risco"/"queimada" with area set to that location.
 - For "poi": if the user mentions a specific unit name or number (e.g. "UBS 01"), set "name_filter".
 - For "geocode": "target" = full address or place name.
 - For "draw"/"setor"/"remove": "target" = RA name (normalised to the list above).
-- If ambiguous between "poi" and "draw", prefer "poi".
 - The user may write in Portuguese or English; handle both.
 """
     resp = client.chat.completions.create(
