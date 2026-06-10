@@ -14,8 +14,8 @@ from langchain_text_splitters import CharacterTextSplitter
 from langchain_core.documents import Document
 from rank_bm25 import BM25Okapi
 
-st.set_page_config(page_title="Public Health Assistant", layout="wide")
-st.title("Public Health Assistant")
+st.set_page_config(page_title="PICAPS/Fiocruz Brasilia :: PHAgent", layout="wide")
+st.title("PICAPS/Fiocruz Brasilia :: PHAgent")
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
@@ -1411,7 +1411,7 @@ with col_chat:
             st.rerun()
 
 with col_map:
-    st.subheader("Federal District (DF)")
+    st.subheader("Map")
 
     all_labels = (
         list(st.session_state["ra_layers"].keys())
