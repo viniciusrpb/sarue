@@ -14,8 +14,8 @@ from langchain_text_splitters import CharacterTextSplitter
 from langchain_core.documents import Document
 from rank_bm25 import BM25Okapi
 
-st.set_page_config(page_title="Opossum ::: Fiocruz Brasília", layout="wide")
-st.title("Opossum ::: Fiocruz Brasília")
+st.set_page_config(page_title="Public Health Assistant", layout="wide")
+st.title("Public Health Assistant")
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
@@ -52,6 +52,56 @@ RA_BBOX = {
     "itapoa":             "-15.720,-47.780,-15.670,-47.740",
     "estrutural":         "-15.790,-48.030,-15.760,-47.990",
 }
+
+def _bbox_center(bbox_str):
+    """Return (lat, lon) center of a 'minlat,minlon,maxlat,maxlon' bbox string."""
+    minlat, minlon, maxlat, maxlon = map(float, bbox_str.split(","))
+    return (minlat + maxlat) / 2, (minlon + maxlon) / 2
+
+
+def _point_in_bbox(lat, lon, bbox_str):
+    minlat, minlon, maxlat, maxlon = map(float, bbox_str.split(","))
+    return minlat <= lat <= maxlat and minlon <= lon <= maxlon
+
+
+def _feature_centroid(feature):
+    """Rough centroid from the first ring of coordinates."""
+    try:
+        geom = feature["geometry"]
+        coords = geom["coordinates"]
+        if geom["type"] == "Polygon":
+            ring = coords[0]
+        elif geom["type"] == "MultiPolygon":
+            ring = coords[0][0]
+        else:
+            return None, None
+        lons = [c[0] for c in ring]
+        lats = [c[1] for c in ring]
+        return sum(lats) / len(lats), sum(lons) / len(lons)
+    except Exception:
+        return None, None
+
+
+def filter_geojson_by_region(gj, region_name):
+    """Return a filtered GeoJSON keeping only features that fall within the
+    bounding box of *region_name* (looked up in RA_BBOX).
+    Returns (filtered_gj, bbox_str_or_None)."""
+    region_n = _norm(region_name)
+    bbox_str = None
+    for key, val in RA_BBOX.items():
+        if region_n in key or key in region_n:
+            bbox_str = val
+            break
+    if bbox_str is None:
+        return gj, None  # unknown region → return everything
+
+    filtered = [
+        feat for feat in gj["features"]
+        if _point_in_bbox(*_feature_centroid(feat), bbox_str)
+    ]
+    filtered_gj = {"type": "FeatureCollection", "features": filtered}
+    return filtered_gj, bbox_str
+
 
 OSM_CATEGORIES = {
     "hospital":       ("amenity", "hospital",        "🏥", "red"),
@@ -132,6 +182,31 @@ def get_subdist_list():
 
 
 @st.cache_data(show_spinner=False)
+def load_ra_geojson():
+    """Build one MultiPolygon feature per Administrative Region (NM_SUBDIST)
+    by grouping all census-sector polygons that share the same RA name.
+    No external geometry library required."""
+    _, _, by_subdist = load_geojson()
+    features = []
+    for subdist, feats in by_subdist.items():
+        all_polys = []
+        for feat in feats:
+            geom = feat["geometry"]
+            if geom["type"] == "Polygon":
+                all_polys.append(geom["coordinates"])
+            elif geom["type"] == "MultiPolygon":
+                all_polys.extend(geom["coordinates"])
+        if not all_polys:
+            continue
+        features.append({
+            "type": "Feature",
+            "properties": {"NM_SUBDIST": subdist.title()},
+            "geometry": {"type": "MultiPolygon", "coordinates": all_polys},
+        })
+    return {"type": "FeatureCollection", "features": features}
+
+
+@st.cache_data(show_spinner=False)
 def load_documents():
     base_dir  = os.path.join(os.path.dirname(__file__), "database", "news")
     documents = []
@@ -165,7 +240,7 @@ def load_documents():
 def load_dengue_data():
     path = os.path.join(os.path.dirname(__file__), "database",
                         "dados_dengue-16042026-ano_2026.csv")
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, sep=";")          # <- adicione sep=";"
     df.columns = [c.lower() for c in df.columns]
     return df
 
@@ -184,7 +259,12 @@ def load_queimadas():
         return json.load(f)
 
 def aggregate_dengue_by_sector(df):
-    return df.groupby("cd_setor")["casos"].sum().reset_index()
+    return (
+        df.groupby("i_desc_estab_cnes_notif")
+        .size()
+        .reset_index(name="casos")
+        .rename(columns={"i_desc_estab_cnes_notif": "estab"})
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -192,10 +272,30 @@ def attach_dengue_to_geojson():
     gj, by_code, _ = load_geojson()
     df  = load_dengue_data()
     agg = aggregate_dengue_by_sector(df)
-    dengue_map = dict(zip(agg["cd_setor"], agg["casos"]))
+
+    ubs = load_ubs_df()
+    agg["estab_norm"] = agg["estab"].apply(_norm)
+    ubs["nome_norm2"] = ubs["nome"].apply(_norm)
+
+    estab_map = dict(zip(agg["estab_norm"], agg["casos"]))
+
     for feat in gj["features"]:
-        code = feat["properties"].get("CD_SETOR")
-        feat["properties"]["dengue_casos"] = int(dengue_map.get(code, 0))
+        feat["properties"]["dengue_casos"] = 0
+
+    for _, row in ubs.iterrows():
+        nome_n = row["nome_norm2"]
+        casos  = estab_map.get(nome_n, 0)
+        if casos == 0:
+            for estab_n, c in estab_map.items():
+                if nome_n in estab_n or estab_n in nome_n:
+                    casos = c
+                    break
+        bairro_n = _norm(row.get("bairro", ""))
+        for feat in gj["features"]:
+            if _norm(feat["properties"].get("NM_SUBDIST", "")) == bairro_n:
+                feat["properties"]["dengue_casos"] += casos
+                break
+
     return gj
 
 
@@ -230,6 +330,103 @@ def get_dengue_color(value):
         if value <= b:
             return colors[min(i, len(colors) - 1)]
     return colors[-1]
+
+@st.cache_data(show_spinner=False)
+def get_dengue_summary(region: str = None):
+    df = load_dengue_data()
+
+    # --- regional filter ------------------------------------------------
+    region_label = None
+    if region:
+        region_n = _norm(region)
+        ubs = load_ubs_df()
+        ubs["nome_norm2"] = ubs["nome"].apply(_norm)
+
+        # find UBS rows whose bairro or nome match the requested region
+        matching_ubs = ubs[
+            ubs["bairro_norm"].str.contains(region_n, na=False) |
+            ubs["nome_norm"].str.contains(region_n, na=False)
+        ]
+
+        if not matching_ubs.empty:
+            # build a set of normalised establishment names for the region
+            estab_norms = set(matching_ubs["nome_norm2"].tolist())
+            df["estab_norm_tmp"] = df["i_desc_estab_cnes_notif"].apply(_norm)
+            df = df[
+                df["estab_norm_tmp"].apply(
+                    lambda x: any(e in x or x in e for e in estab_norms)
+                )
+            ]
+            region_label = region.title()
+        else:
+            # fallback: text-search within the establishment name column
+            df = df[
+                df["i_desc_estab_cnes_notif"].apply(_norm).str.contains(region_n, na=False)
+            ]
+            region_label = region.title() if not df.empty else None
+    # --------------------------------------------------------------------
+
+    total = len(df)
+    confirmed = len(df[df["i_desc_classificacao"].str.contains("Dengue", na=False)])
+    alarm = len(df[df["i_desc_classificacao"] == "Dengue com sinais de alarme"])
+    deaths = len(df[df["i_desc_evolucao"] == "Óbito pelo agravo notificado"])
+
+    by_estab = (
+        df.groupby("i_desc_estab_cnes_notif")
+        .size()
+        .reset_index(name="casos")
+        .sort_values("casos", ascending=False)
+    )
+
+    ubs = load_ubs_df()
+    ubs["nome_norm2"] = ubs["nome"].apply(_norm)
+    df["estab_norm"] = df["i_desc_estab_cnes_notif"].apply(_norm)
+
+    estab_bairro = {}
+    for _, row in ubs.iterrows():
+        estab_bairro[row["nome_norm2"]] = row.get("bairro", "Não Informado")
+
+    df["bairro"] = df["estab_norm"].map(
+        lambda x: next((estab_bairro[k] for k in estab_bairro if k in x or x in k), "Não Informado")
+    )
+
+    by_bairro = (
+        df[df["bairro"] != "Não Informado"]
+        .groupby("bairro")
+        .size()
+        .reset_index(name="casos")
+        .sort_values("casos", ascending=False)
+        .head(5)
+    )
+
+    by_age = (
+        df.groupby("i_faixa_etaria")
+        .size()
+        .reset_index(name="casos")
+        .sort_values("casos", ascending=False)
+        .head(3)
+    )
+
+    by_week = (
+        df.groupby("i_ano_semana_prim_sintomas_svs")
+        .size()
+        .reset_index(name="casos")
+        .sort_values("i_ano_semana_prim_sintomas_svs")
+    )
+    peak_week = by_week.loc[by_week["casos"].idxmax(), "i_ano_semana_prim_sintomas_svs"]
+
+    return {
+        "total": total,
+        "confirmed": confirmed,
+        "alarm": alarm,
+        "deaths": deaths,
+        "top_estab": by_estab.head(5).to_dict("records"),
+        "top_bairro": by_bairro.to_dict("records"),
+        "top_age": by_age.to_dict("records"),
+        "peak_week": peak_week,
+        "by_week": by_week.to_dict("records"),
+        "region_label": region_label,
+    }
 
 @st.cache_data(show_spinner=False, ttl=300)
 def extract_entities(text):
@@ -523,9 +720,6 @@ def search_poi(category, area_name, name_filter=None):
                          "phone": tags.get("phone", tags.get("contact:phone", ""))})
     return pois, icon, color, None
 
-
-# ── Mapa ──────────────────────────────────────────────────────────────────────
-
 def next_poly_color():
     return POLY_COLORS[len(st.session_state["drawn_layers"]) % len(POLY_COLORS)]
 
@@ -567,7 +761,6 @@ def detect_language(text):
         max_tokens=10,
     )
     lang = resp.choices[0].message.content.strip().lower()
-    # remove qualquer <think>...</think> que vaze
     lang = re.sub(r"<think>.*?</think>", "", lang, flags=re.DOTALL).strip()
     return "pt" if "pt" in lang else "en"
 
@@ -580,40 +773,56 @@ def parse_command(user_text):
 Classify the user message and respond ONLY with pure JSON (no markdown, no explanation).
 
 Actions:
-- "draw":     draw census sector polygons for an Administrative Region (RA) on the map
+- "draw":     highlight an Administrative Region (RA) boundary polygon on the map.
+              Use when the user asks to "show", "draw", "highlight", or "zoom to" an RA.
+- "setor":    show individual census sectors (setores censitários) inside an RA.
+              ONLY triggered when the user explicitly mentions "setor censitário",
+              "census sector", "setores", "census sectors", or asks to see sectors.
+              "target" = RA name, or null to show all sectors in the DF.
 - "remove":   remove a specific layer from the map
 - "clear":    remove ALL layers from the map
 - "poi":      search for points of interest on OpenStreetMap (hospitals, pharmacies, clinics, etc.)
 - "geocode":  locate and pin a specific address or place on the map
-- "dengue":   display a dengue case choropleth map by census sector
+- "dengue":       display a dengue case choropleth map by census sector.
+                  Triggered by: "show dengue map", "dengue map", "mapa dengue",
+                  "show me dengue", "visualize dengue"
+- "dengue_query": answer analytical questions about dengue data.
+                  Triggered by: "how many cases", "which region has more",
+                  "worst region", "most affected", "dengue situation",
+                  "how is dengue", "dengue cases in 2026", "peak week",
+                  "most cases", "qual região", "quantos casos", "região mais afetada"
+                  If the user mentions a specific region/neighbourhood, set "target" to that region name.
 - "risco":    display geological risk areas on the map (CPRM data).
               Triggered by: "risk zones", "geological risk", "landslide", "risco geológico",
               "deslizamento", "áreas de risco", "risk areas", "enxurrada", "voçoroca",
               "risco", "risk", "are there risks", "zonas de risco", "near [location] risk"
+              If the user mentions a specific region/neighbourhood, set "area" to that region name.
 - "queimada": display burned areas on the map (2025 data).
               Triggered by: "burned areas", "fire", "queimadas", "incêndio", "áreas queimadas",
               "wildfires", "queimou", "fogo"
+              If the user mentions a specific region/neighbourhood, set "area" to that region name.
 - "none":     public health question or topic unrelated to map control
 
-Available RAs (for draw/remove, Portuguese names): {subdist_str}
+Available RAs (Portuguese names): {subdist_str}
 Available POI categories: {poi_cats_str}
 
 Response format:
 {{
-  "action":      "draw"|"remove"|"clear"|"poi"|"geocode"|"dengue"|"risco"|"queimada"|"none",
-  "target":      "<RA name, sector code, full address or category>",
-  "area":        "<RA/neighbourhood name for POI search, or null>",
+  "action":      "draw"|"setor"|"remove"|"clear"|"poi"|"geocode"|"dengue"|"dengue_query"|"risco"|"queimada"|"none",
+  "target":      "<RA name, sector code, full address or category, or null>",
+  "area":        "<RA/neighbourhood name for POI/risco/queimada search, or null>",
   "category":    "<normalised POI category without accents, or null>",
   "name_filter": "<specific name/number to filter, e.g. '01', 'Asa Norte', or null>"
 }}
 
 Rules:
+- "draw" shows RA-level boundaries; "setor" reveals the finer census-sector grid — only on explicit user request.
 - Questions about geological risks, landslides, floods, burned areas, or fire are ALWAYS
   "risco" or "queimada" actions, NEVER "none".
 - "near [location]" + risk/fire topic = "risco"/"queimada" with area set to that location.
 - For "poi": if the user mentions a specific unit name or number (e.g. "UBS 01"), set "name_filter".
 - For "geocode": "target" = full address or place name.
-- For "draw"/"remove": "target" = RA name (normalised to the list above).
+- For "draw"/"setor"/"remove": "target" = RA name (normalised to the list above).
 - If ambiguous between "poi" and "draw", prefer "poi".
 - The user may write in Portuguese or English; handle both.
 """
@@ -645,7 +854,7 @@ def execute_command(parsed, lang="en"):
         return pt if lang == "pt" else en
 
     if action == "clear":
-        for store in ["drawn_layers", "poi_layers", "pin_layers"]:
+        for store in ["drawn_layers", "ra_layers", "poi_layers", "pin_layers"]:
             st.session_state[store] = {}
         st.session_state.pop("dengue_layer",  None)
         st.session_state.pop("risco_layer",   None)
@@ -656,7 +865,7 @@ def execute_command(parsed, lang="en"):
     if action == "remove":
         key_norm = _norm(target)
         removed  = []
-        for store in ["drawn_layers", "poi_layers", "pin_layers"]:
+        for store in ["drawn_layers", "ra_layers", "poi_layers", "pin_layers"]:
             for k in list(st.session_state[store].keys()):
                 if _norm(k) == key_norm or key_norm in _norm(k):
                     del st.session_state[store][k]
@@ -674,16 +883,58 @@ def execute_command(parsed, lang="en"):
                    f"⚠️ Nenhuma camada chamada **{target}** encontrada no mapa.")
 
     if action == "draw":
-        label, features = find_sectors(target)
-        if not features:
+        # Highlight the RA boundary (RA-level polygon, not individual census sectors)
+        ra_gj = load_ra_geojson()
+        ra_norm = _norm(target)
+        matched = [
+            f for f in ra_gj["features"]
+            if ra_norm in _norm(f["properties"]["NM_SUBDIST"])
+            or _norm(f["properties"]["NM_SUBDIST"]) in ra_norm
+        ]
+        if not matched:
             return msg(
-                f"⚠️ No sectors found for **{target}**.\n"
-                "Try the name of an Administrative Region (e.g. Ceilândia, Taguatinga) "
-                "or a 15-digit sector code.",
-                f"⚠️ Não encontrei setores para **{target}**.\n"
-                "Tente o nome de uma RA (ex: Ceilândia, Taguatinga) "
-                "ou um código de setor com 15 dígitos.",
+                f"⚠️ No Administrative Region found for **{target}**.\n"
+                "Try a name from the list (e.g. Ceilândia, Taguatinga, Asa Norte).",
+                f"⚠️ Nenhuma Região Administrativa encontrada para **{target}**.\n"
+                "Tente um nome da lista (ex: Ceilândia, Taguatinga, Asa Norte).",
             )
+        label = matched[0]["properties"]["NM_SUBDIST"]
+        color = next_poly_color()
+        st.session_state["ra_layers"][label] = {"features": matched, "color": color}
+        # Centre map on RA bbox
+        all_lats, all_lons = [], []
+        for feat in matched:
+            geom = feat["geometry"]
+            polys = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+            for poly in polys:
+                for ring in poly:
+                    for lon, lat in ring:
+                        all_lats.append(lat); all_lons.append(lon)
+        if all_lats:
+            st.session_state["map_center"] = [
+                sum(all_lats) / len(all_lats), sum(all_lons) / len(all_lons)]
+        return msg(
+            f"✅ **{label}** highlighted on the map.\n"
+            "_To see individual census sectors, type 'show census sectors of {label}'._",
+            f"✅ **{label}** destacada no mapa.\n"
+            f"_Para ver os setores censitários individuais, digite 'mostrar setores censitários de {label}'._",
+        )
+
+    if action == "setor":
+        # Show individual census sectors — only on explicit user request
+        _, by_code, by_subdist = load_geojson()
+        if target:
+            label, features = find_sectors(target)
+            if not features:
+                return msg(
+                    f"⚠️ No census sectors found for **{target}**.\n"
+                    "Try the name of an Administrative Region (e.g. Ceilândia, Taguatinga).",
+                    f"⚠️ Nenhum setor censitário encontrado para **{target}**.\n"
+                    "Tente o nome de uma RA (ex: Ceilândia, Taguatinga).",
+                )
+        else:
+            label = "DF (all sectors)"
+            features = [f for feats in by_subdist.values() for f in feats]
         color = next_poly_color()
         st.session_state["drawn_layers"][label] = {"features": features, "color": color}
         lats, lons = [], []
@@ -694,8 +945,10 @@ def execute_command(parsed, lang="en"):
         if lats:
             st.session_state["map_center"] = [
                 sum(lats) / len(lats), sum(lons) / len(lons)]
-        return msg(f"✅ **{label}** drawn on the map with {len(features)} census sector(s).",
-                   f"✅ **{label}** desenhado no mapa com {len(features)} setor(es) censitário(s).")
+        return msg(
+            f"✅ **{len(features)} census sector(s)** for **{label}** drawn on the map.",
+            f"✅ **{len(features)} setor(es) censitário(s)** de **{label}** desenhados no mapa.",
+        )
 
     if action == "poi":
         name_filter = parsed.get("name_filter", None)
@@ -741,24 +994,119 @@ def execute_command(parsed, lang="en"):
         gj = attach_dengue_to_geojson()
         st.session_state["dengue_layer"] = gj
         st.session_state["map_center"]   = [-15.793889, -47.882778]
-        return msg("🦟 Dengue case map loaded by census sector.",
-                   "🦟 Mapa de casos de dengue carregado por setor censitário.")
+        df  = load_dengue_data()
+        total = len(df)
+        confirmed = len(df[df["i_desc_classificacao"].str.contains("Dengue", na=False)])
+        alarm = len(df[df["i_desc_classificacao"] == "Dengue com sinais de alarme"])
+        deaths = len(df[df["i_desc_evolucao"] == "Óbito pelo agravo notificado"])
+        return msg(
+            f"🦟 Dengue map loaded for 2026. "
+            f"The DF has **{total:,} notified cases**, of which **{confirmed}** are confirmed dengue "
+            f"({alarm} with warning signs) and **{deaths} death(s)** recorded. "
+            f"Distribution by census sector is now visible on the map.",
+            f"🦟 Mapa de dengue carregado para 2026. "
+            f"O DF registra **{total:,} casos notificados**, dos quais **{confirmed}** são dengue confirmada "
+            f"({alarm} com sinais de alarme) e **{deaths} óbito(s)**. "
+            f"A distribuição por setor censitário está visível no mapa.",
+        )
 
     if action == "risco":
-        gj = load_risco_geologico()
+        gj_full = load_risco_geologico()
+        region = target or area or None
+        if region:
+            gj, bbox_str = filter_geojson_by_region(gj_full, region)
+            if bbox_str:
+                center_lat, center_lon = _bbox_center(bbox_str)
+                st.session_state["map_center"] = [center_lat, center_lon]
+            else:
+                st.session_state["map_center"] = [-15.793889, -47.882778]
+        else:
+            gj = gj_full
+            st.session_state["map_center"] = [-15.793889, -47.882778]
         st.session_state["risco_layer"] = gj
-        st.session_state["map_center"]  = [-15.793889, -47.882778]
         n = len(gj["features"])
-        return msg(f"⚠️ {n} geological risk sectors loaded (Alto and Muito Alto).",
-                   f"⚠️ {n} setores de risco geológico carregados (Alto e Muito Alto).")
+        scope_en = f" in **{region.title()}**" if region else ""
+        scope_pt = f" em **{region.title()}**" if region else ""
+        if n == 0 and region:
+            return msg(
+                f"⚠️ No geological risk sectors found for **{region.title()}**.",
+                f"⚠️ Nenhum setor de risco geológico encontrado para **{region.title()}**.",
+            )
+        return msg(f"⚠️ {n} geological risk sector(s) loaded{scope_en} (Alto and Muito Alto).",
+                   f"⚠️ {n} setor(es) de risco geológico carregado(s){scope_pt} (Alto e Muito Alto).")
 
     if action == "queimada":
-        gj = load_queimadas()
+        gj_full = load_queimadas()
+        region = target or area or None
+        if region:
+            gj, bbox_str = filter_geojson_by_region(gj_full, region)
+            if bbox_str:
+                center_lat, center_lon = _bbox_center(bbox_str)
+                st.session_state["map_center"] = [center_lat, center_lon]
+            else:
+                st.session_state["map_center"] = [-15.793889, -47.882778]
+        else:
+            gj = gj_full
+            st.session_state["map_center"] = [-15.793889, -47.882778]
         st.session_state["queimada_layer"] = gj
-        st.session_state["map_center"]     = [-15.793889, -47.882778]
         n = len(gj["features"])
-        return msg(f"🔥 {n} burned area polygons loaded (2025 data).",
-                   f"🔥 {n} polígonos de áreas queimadas carregados (dados 2025).")
+        scope_en = f" in **{region.title()}**" if region else ""
+        scope_pt = f" em **{region.title()}**" if region else ""
+        if n == 0 and region:
+            return msg(
+                f"⚠️ No burned area polygons found for **{region.title()}** in 2025.",
+                f"⚠️ Nenhum polígono de área queimada encontrado para **{region.title()}** em 2025.",
+            )
+        return msg(f"🔥 {n} burned area polygon(s) loaded{scope_en} (2025 data).",
+                   f"🔥 {n} polígono(s) de áreas queimadas carregado(s){scope_pt} (dados 2025).")
+
+    if action == "dengue_query":
+        region = target or area or None
+        s = get_dengue_summary(region=region)
+
+        scope_en = f"in **{s['region_label']}**" if s.get("region_label") else "in the **Distrito Federal**"
+        scope_pt = f"em **{s['region_label']}**" if s.get("region_label") else "no **Distrito Federal**"
+
+        no_data_en = f"⚠️ No dengue records found for **{region}** in 2026. The region may not appear as a notifying area in the dataset."
+        no_data_pt = f"⚠️ Nenhum registro de dengue encontrado para **{region}** em 2026. A região pode não constar como área notificadora no conjunto de dados."
+
+        if s["total"] == 0 and region:
+            return msg(no_data_en, no_data_pt)
+
+        top_estab_txt = "\n".join(
+            f"  {r['i_desc_estab_cnes_notif']}: {r['casos']} cases"
+            for r in s["top_estab"]
+        )
+        top_bairro_txt = "\n".join(
+            f"  {r['bairro'].title()}: {r['casos']} cases"
+            for r in s["top_bairro"]
+        ) if s["top_bairro"] else "  (geographic breakdown not available)"
+
+        top_age_txt = "\n".join(
+            f"  {r['i_faixa_etaria'].replace('_', '-')}: {r['casos']} cases"
+            for r in s["top_age"]
+        )
+
+        return msg(
+            f"🦟 **Dengue {scope_en} — 2026**\n\n"
+            f"**Total notified cases:** {s['total']:,}\n"
+            f"**Confirmed dengue:** {s['confirmed']} ({s['alarm']} with warning signs)\n"
+            f"**Deaths:** {s['deaths']}\n"
+            f"**Epidemiological peak:** week {str(s['peak_week'])[4:]} of 2026\n\n"
+            f"**Top notifying facilities:**\n{top_estab_txt}\n\n"
+            f"**Most affected neighborhoods:**\n{top_bairro_txt}\n\n"
+            f"**Most affected age groups:**\n{top_age_txt}\n\n"
+            f"_Type 'show dengue map' to visualize case distribution by census sector._",
+            f"🦟 **Dengue {scope_pt} — 2026**\n\n"
+            f"**Total de casos notificados:** {s['total']:,}\n"
+            f"**Dengue confirmada:** {s['confirmed']} ({s['alarm']} com sinais de alarme)\n"
+            f"**Óbitos:** {s['deaths']}\n"
+            f"**Pico epidemiológico:** semana {str(s['peak_week'])[4:]} de 2026\n\n"
+            f"**Estabelecimentos com mais notificações:**\n{top_estab_txt}\n\n"
+            f"**Bairros mais afetados:**\n{top_bairro_txt}\n\n"
+            f"**Faixas etárias mais afetadas:**\n{top_age_txt}\n\n"
+            f"_Digite 'mostrar mapa de dengue' para visualizar a distribuição por setor censitário._",
+        )
 
     if action == "geocode":
         with st.spinner(f"Locating **{target}**..."):
@@ -790,26 +1138,20 @@ def execute_command(parsed, lang="en"):
 
     return None
 
-
-# ── Session state ─────────────────────────────────────────────────────────────
-
 if "drawn_layers"  not in st.session_state: st.session_state["drawn_layers"]  = {}
+if "ra_layers"     not in st.session_state: st.session_state["ra_layers"]     = {}
 if "poi_layers"    not in st.session_state: st.session_state["poi_layers"]    = {}
 if "pin_layers"    not in st.session_state: st.session_state["pin_layers"]    = {}
 if "map_center"    not in st.session_state: st.session_state["map_center"]    = [-15.793889, -47.882778]
 if "chat_history"  not in st.session_state: st.session_state["chat_history"]  = []
 
-
-# ── Layout ────────────────────────────────────────────────────────────────────
-
 col_chat, col_map = st.columns([1, 1])
 
-# --- Chat primeiro (processa input e atualiza session_state) ---
 with col_chat:
     st.subheader("Assistant")
 
     for msg_item in st.session_state["chat_history"]:
-        role_label = "You" if msg_item["role"] == "user" else "Opossum"
+        role_label = "You" if msg_item["role"] == "user" else "Agent"
         with st.chat_message(msg_item["role"]):
             st.markdown(f"**{role_label}:** {msg_item['content']}")
 
@@ -839,14 +1181,23 @@ with col_chat:
                     }
                 last_lats, last_lons = [], []
                 for loc in localidades:
-                    label, features = find_sectors(loc)
-                    if features:
+                    ra_gj = load_ra_geojson()
+                    loc_n = _norm(loc)
+                    matched_ra = [
+                        f for f in ra_gj["features"]
+                        if loc_n in _norm(f["properties"]["NM_SUBDIST"])
+                        or _norm(f["properties"]["NM_SUBDIST"]) in loc_n
+                    ]
+                    if matched_ra:
+                        ra_label = matched_ra[0]["properties"]["NM_SUBDIST"]
                         color = next_poly_color()
-                        st.session_state["drawn_layers"][label] = {
-                            "features": features, "color": color,
+                        st.session_state["ra_layers"][ra_label] = {
+                            "features": matched_ra, "color": color,
                         }
-                        for feat in features:
-                            for ring in feat["geometry"]["coordinates"]:
+                        geom = matched_ra[0]["geometry"]
+                        polys = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+                        for poly in polys:
+                            for ring in poly:
                                 for lon, lat in ring:
                                     last_lats.append(lat)
                                     last_lons.append(lon)
@@ -868,7 +1219,8 @@ with col_map:
     st.subheader("Federal District (DF)")
 
     all_labels = (
-        list(st.session_state["drawn_layers"].keys())
+        list(st.session_state["ra_layers"].keys())
+        + list(st.session_state["drawn_layers"].keys())
         + list(st.session_state["poi_layers"].keys())
         + list(st.session_state["pin_layers"].keys())
     )
@@ -881,7 +1233,7 @@ with col_map:
     if display_labels:
         st.caption("**Active layers:** " + " · ".join(display_labels))
         if st.button("🗑️ Clear all layers"):
-            for store in ["drawn_layers", "poi_layers", "pin_layers"]:
+            for store in ["drawn_layers", "ra_layers", "poi_layers", "pin_layers"]:
                 st.session_state[store] = {}
             for k in ["dengue_layer", "risco_layer", "queimada_layer"]:
                 st.session_state.pop(k, None)
@@ -900,7 +1252,6 @@ with col_map:
         attr="Tiles © Esri", name="Satellite", control=True,
     ).add_to(m)
 
-    # Dengue
     if "dengue_layer" in st.session_state:
         folium.GeoJson(
             st.session_state["dengue_layer"],
@@ -915,7 +1266,6 @@ with col_map:
             ),
         ).add_to(m)
 
-    # Risco geológico
     if "risco_layer" in st.session_state:
         folium.GeoJson(
             st.session_state["risco_layer"],
@@ -938,7 +1288,6 @@ with col_map:
             ),
         ).add_to(m)
 
-    # Áreas queimadas
     if "queimada_layer" in st.session_state:
         folium.GeoJson(
             st.session_state["queimada_layer"],
@@ -949,26 +1298,57 @@ with col_map:
             },
             tooltip=folium.GeoJsonTooltip(
                 fields=["mes_nome", "area_ha", "data"],
-                aliases=["Mês:", "Área (ha):", "Data:"],
+                aliases=["Month:", "Area:", "Date:"],
             ),
         ).add_to(m)
 
-    # Setores censitários
+    # ── Base layer: Administrative Regions (always visible) ───────────────
+    base_ra_gj = load_ra_geojson()
+    folium.GeoJson(
+        base_ra_gj,
+        name="Regiões Administrativas",
+        style_function=lambda _: {
+            "fillColor": "transparent",
+            "color": "#555555",
+            "weight": 1.5,
+            "fillOpacity": 0,
+        },
+        tooltip=folium.GeoJsonTooltip(
+            fields=["NM_SUBDIST"],
+            aliases=["Região:"],
+        ),
+    ).add_to(m)
+
+    # ── Highlighted RA polygons (from "draw" command) ──────────────────────
+    for label, layer in st.session_state["ra_layers"].items():
+        color   = layer["color"]
+        payload = {"type": "FeatureCollection", "features": layer["features"]}
+        folium.GeoJson(
+            payload, name=f"RA: {label}",
+            style_function=lambda _, c=color: {
+                "fillColor": c, "color": c, "weight": 2.5, "fillOpacity": 0.25,
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=["NM_SUBDIST"],
+                aliases=["Região:"],
+            ),
+        ).add_to(m)
+
+    # ── Census sectors (from explicit "setor" command only) ────────────────
     for label, layer in st.session_state["drawn_layers"].items():
         color   = layer["color"]
         payload = {"type": "FeatureCollection", "features": layer["features"]}
         folium.GeoJson(
-            payload, name=label,
+            payload, name=f"Setores: {label}",
             style_function=lambda _, c=color: {
-                "fillColor": c, "color": c, "weight": 1.2, "fillOpacity": 0.30,
+                "fillColor": c, "color": c, "weight": 0.8, "fillOpacity": 0.30,
             },
             tooltip=folium.GeoJsonTooltip(
                 fields=["CD_SETOR", "NM_SUBDIST"],
-                aliases=["Sector:", "Region:"],
+                aliases=["Setor:", "Região:"],
             ),
         ).add_to(m)
 
-    # POIs
     for label, layer in st.session_state["poi_layers"].items():
         fg = folium.FeatureGroup(name=label)
         for poi in layer["pois"]:
@@ -985,7 +1365,6 @@ with col_map:
             ).add_to(fg)
         fg.add_to(m)
 
-    # Pins geocode
     for label, pin in st.session_state["pin_layers"].items():
         folium.Marker(
             location=[pin["lat"], pin["lon"]],
@@ -999,4 +1378,4 @@ with col_map:
 
 
 st.markdown("---")
-st.markdown("© 2026 · Opossum – Fiocruz Brasília · Grupo de Inteligência Computacional na Saúde (GICS)")
+#st.markdown("© 2026 · Opossum – Fiocruz Brasília · Grupo de Inteligência Computacional na Saúde (GICS)")
