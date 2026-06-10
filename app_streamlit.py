@@ -1457,10 +1457,10 @@ with col_map:
         if dengue_feats:
             if dengue_mode == "ra":
                 tooltip_fields  = ["ra", "dengue_casos"]
-                tooltip_aliases = ["Região:", "Casos:"]
+                tooltip_aliases = ["Region:", "Cases:"]
             else:
                 tooltip_fields  = ["NM_SUBDIST", "dengue_casos"]
-                tooltip_aliases = ["Subdistrito:", "Casos:"]
+                tooltip_aliases = ["Subregions:", "Cases:"]
             folium.GeoJson(
                 st.session_state["dengue_layer"],
                 name="Dengue 2026",
@@ -1477,7 +1477,7 @@ with col_map:
     if "risco_layer" in st.session_state:
         folium.GeoJson(
             st.session_state["risco_layer"],
-            name="Risco Geológico (CPRM)",
+            name="Geological Risk (CPRM)",
             style_function=lambda feat: {
                 "fillColor":   RISCO_COLORS.get(feat["properties"]["grau_risco"], "#fc8d59"),
                 "color": "#333", "weight": 1.5, "fillOpacity": 0.65,
@@ -1537,7 +1537,7 @@ with col_map:
             },
             tooltip=folium.GeoJsonTooltip(
                 fields=["CD_SETOR", "NM_SUBDIST"],
-                aliases=["Setor:", "Região:"],
+                aliases=["Sector:", "Region:"],
             ),
         ).add_to(m)
 
