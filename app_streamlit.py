@@ -476,7 +476,7 @@ def get_dengue_summary(region: str = None):
 @st.cache_data(show_spinner=False, ttl=300)
 def extract_entities(text):
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=[
             {
                 "role": "system",
@@ -563,7 +563,7 @@ def translate_to_pt(text):
     """Translate any text to Brazilian Portuguese for corpus retrieval.
     Returns the original text unchanged if already in Portuguese."""
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=[
             {
                 "role": "system",
@@ -644,7 +644,7 @@ Question:
 Answer:"""
 
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=[
             {"role": "system", "content": "You are a concise, factual public-health assistant. Do not think out loud."},
             {"role": "user",   "content": f"/no_think {prompt}"},
@@ -819,7 +819,7 @@ def find_sectors(query_text):
 
 def detect_language(text):
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=[
             {
                 "role": "system",
@@ -912,7 +912,7 @@ Rules:
 - The user may write in Portuguese or English; handle both.
 """
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=[
             {"role": "system", "content": system},
             {"role": "user",   "content": f"/no_think {user_text}"},
