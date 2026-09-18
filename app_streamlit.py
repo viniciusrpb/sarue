@@ -206,13 +206,14 @@ def load_ra_geojson():
 
 
 @st.cache_data(show_spinner=False)
-def compute_ra_cartogram(dengue_casos: dict) -> dict:
+def compute_ra_cartogram(dengue_casos: dict, max_iterations: int = 10) -> dict:
     """Deform RA polygons proportionally to dengue case counts using
     Gastner's continuous cartogram algorithm (Dougenik et al. 1985).
 
     Parameters
     ----------
-    dengue_casos : dict  {ra_name (str) -> case_count (int)}
+    dengue_casos  : dict  {ra_name (str) -> case_count (int)}
+    max_iterations: int   Number of algorithm iterations (1 = subtle, 20 = strong)
 
     Returns
     -------
@@ -221,29 +222,23 @@ def compute_ra_cartogram(dengue_casos: dict) -> dict:
     ra_gj = load_ra_geojson()
     gdf   = gpd.GeoDataFrame.from_features(ra_gj["features"], crs="EPSG:4326")
 
-    # Map case counts onto the GeoDataFrame
-    gdf["dengue_casos"] = gdf["ra"].map(
-        {k: v for k, v in dengue_casos.items()}
-    ).fillna(0).astype(float)
+    gdf["dengue_casos"] = gdf["ra"].map(dengue_casos).fillna(0).astype(float)
 
-    # Cartogram requires a projected CRS and strictly positive values
     gdf_proj = gdf.to_crs("EPSG:3857")
     gdf_proj["dengue_casos"] = gdf_proj["dengue_casos"].clip(lower=1)
 
     carto = Cartogram(
         gdf_proj,
         cartogram_attribute="dengue_casos",
-        max_iterations=10,
-        max_average_error=0.05,
+        max_iterations=max_iterations,
+        max_average_error=0.0,   # always run all requested iterations
     )
 
-    # Reproject back to WGS-84 and rebuild GeoJSON
     carto_wgs = carto.to_crs("EPSG:4326")
     features  = []
     for _, row in carto_wgs.iterrows():
-        geom = row.geometry.__geo_interface__
+        geom  = row.geometry.__geo_interface__
         props = {col: row[col] for col in carto_wgs.columns if col != "geometry"}
-        # convert numpy types to native Python for JSON serialisation
         props = {k: (int(v) if hasattr(v, "item") else v) for k, v in props.items()}
         features.append({"type": "Feature", "geometry": geom, "properties": props})
 
@@ -1375,6 +1370,7 @@ if "map_center"         not in st.session_state: st.session_state["map_center"] 
 if "chat_history"       not in st.session_state: st.session_state["chat_history"]        = []
 if "dengue_mode"        not in st.session_state: st.session_state["dengue_mode"]         = "ra"
 if "cartogram_enabled"  not in st.session_state: st.session_state["cartogram_enabled"]   = False
+if "cartogram_iterations" not in st.session_state: st.session_state["cartogram_iterations"] = 5
 
 col_chat, col_map = st.columns([1, 1])
 
@@ -1465,7 +1461,7 @@ with col_chat:
 with col_map:
     st.subheader("Map")
 
-    # ── Cartogram toggle ───────────────────────────────────────────────────
+    # ── Cartogram toggle + deformation slider ─────────────────────────────
     cartogram_enabled = st.checkbox(
         "🗺️ Dengue Cartogram  *(deform RA polygons by case count)*",
         value=st.session_state["cartogram_enabled"],
@@ -1478,6 +1474,25 @@ with col_map:
     if cartogram_enabled != st.session_state["cartogram_enabled"]:
         st.session_state["cartogram_enabled"] = cartogram_enabled
         st.rerun()
+
+    if st.session_state["cartogram_enabled"]:
+        cartogram_iterations = st.slider(
+            "Deformation intensity (iterations)",
+            min_value=1,
+            max_value=20,
+            value=st.session_state["cartogram_iterations"],
+            step=1,
+            help=(
+                "Controls how strongly polygons are deformed: "
+                "1 = very subtle, 20 = maximum distortion. "
+                "The map redraws automatically at each step."
+            ),
+        )
+        if cartogram_iterations != st.session_state["cartogram_iterations"]:
+            st.session_state["cartogram_iterations"] = cartogram_iterations
+    else:
+        cartogram_iterations = st.session_state["cartogram_iterations"]
+    # ──────────────────────────────────────────────────────────────────────
 
     # ── Layer management panel ─────────────────────────────────────────────
     all_layer_keys = (
@@ -1600,8 +1615,8 @@ with col_map:
                 feat["properties"]["ra"]: feat["properties"].get("dengue_casos", 0)
                 for feat in dengue_data["features"]
             }
-            with st.spinner("Computing cartogram…"):
-                carto_gj = compute_ra_cartogram(dengue_casos)
+            with st.spinner(f"Computing cartogram (iteration {cartogram_iterations})…"):
+                carto_gj = compute_ra_cartogram(dengue_casos, max_iterations=cartogram_iterations)
             carto_by_ra = {_norm(f["properties"]["ra"]): f for f in carto_gj["features"]}
             for label, layer in st.session_state["ra_layers"].items():
                 color    = layer["color"]
