@@ -1548,18 +1548,49 @@ with col_map:
         attr="Tiles © Esri", name="Satellite", control=True,
     ).add_to(m)
 
+    # ── Pre-compute cartogram if enabled (used by dengue layer and RA layers) ─
+    carto_by_ra = {}
+    if st.session_state["cartogram_enabled"]:
+        dengue_data       = attach_dengue_to_ra()
+        dengue_casos_dict = {
+            feat["properties"]["ra"]: feat["properties"].get("dengue_casos", 0)
+            for feat in dengue_data["features"]
+        }
+        dengue_casos_tuple = tuple(sorted(dengue_casos_dict.items()))
+        with st.spinner(f"Computing cartogram (iterations: {cartogram_iterations})…"):
+            carto_gj   = compute_ra_cartogram(dengue_casos_tuple, max_iterations=cartogram_iterations)
+        carto_by_ra = {_norm(f["properties"]["ra"]): f for f in carto_gj["features"]}
+
     # ── Dengue choropleth ──────────────────────────────────────────────────
     if "dengue_layer" in st.session_state:
         dengue_mode  = st.session_state.get("dengue_mode", "ra")
         dengue_feats = st.session_state["dengue_layer"].get("features", [])
         if dengue_feats:
+            # When cartogram is enabled and mode is RA, deform the RA polygons
+            if st.session_state["cartogram_enabled"] and dengue_mode == "ra" and carto_by_ra:
+                deformed_feats = []
+                for feat in dengue_feats:
+                    ra_n     = _norm(feat["properties"].get("ra", ""))
+                    deformed = carto_by_ra.get(ra_n, feat)
+                    # carry dengue_casos from original feature into deformed properties
+                    merged = {**deformed["properties"],
+                              "dengue_casos": feat["properties"].get("dengue_casos", 0)}
+                    deformed_feats.append({
+                        "type": "Feature",
+                        "geometry": deformed["geometry"],
+                        "properties": merged,
+                    })
+                render_feats = deformed_feats
+            else:
+                render_feats = dengue_feats
+
             tooltip_fields, tooltip_aliases = (
                 (["ra", "dengue_casos"], ["Region:", "Cases:"])
                 if dengue_mode == "ra"
                 else (["NM_SUBDIST", "dengue_casos"], ["Subregion:", "Cases:"])
             )
             folium.GeoJson(
-                st.session_state["dengue_layer"],
+                {"type": "FeatureCollection", "features": render_feats},
                 name="Dengue 2026",
                 style_function=lambda feat: {
                     "fillColor": get_dengue_color(feat["properties"]["dengue_casos"]),
@@ -1608,16 +1639,7 @@ with col_map:
 
     # ── RA polygons — accumulated, one entry per RA ───────────────────────
     if st.session_state["ra_layers"]:
-        if st.session_state["cartogram_enabled"]:
-            dengue_data   = attach_dengue_to_ra()
-            dengue_casos_dict = {
-                feat["properties"]["ra"]: feat["properties"].get("dengue_casos", 0)
-                for feat in dengue_data["features"]
-            }
-            dengue_casos_tuple = tuple(sorted(dengue_casos_dict.items()))
-            with st.spinner(f"Computing cartogram (iteration {cartogram_iterations})…"):
-                carto_gj = compute_ra_cartogram(dengue_casos_tuple, max_iterations=cartogram_iterations)
-            carto_by_ra = {_norm(f["properties"]["ra"]): f for f in carto_gj["features"]}
+        if st.session_state["cartogram_enabled"] and carto_by_ra:
             for label, layer in st.session_state["ra_layers"].items():
                 color    = layer["color"]
                 ra_feats = [
