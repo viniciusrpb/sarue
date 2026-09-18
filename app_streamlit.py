@@ -206,19 +206,17 @@ def load_ra_geojson():
 
 
 @st.cache_data(show_spinner=False)
-def compute_ra_cartogram(dengue_casos: dict, max_iterations: int = 10) -> dict:
+def compute_ra_cartogram(dengue_casos_tuple: tuple, max_iterations: int = 10) -> dict:
     """Deform RA polygons proportionally to dengue case counts using
     Gastner's continuous cartogram algorithm (Dougenik et al. 1985).
 
     Parameters
     ----------
-    dengue_casos  : dict  {ra_name (str) -> case_count (int)}
-    max_iterations: int   Number of algorithm iterations (1 = subtle, 20 = strong)
-
-    Returns
-    -------
-    GeoJSON FeatureCollection with deformed geometries and original properties.
+    dengue_casos_tuple : tuple of (ra_name, case_count) pairs — hashable for cache
+    max_iterations     : int  — 1 = very subtle deformation, 20 = maximum
     """
+    dengue_casos = dict(dengue_casos_tuple)
+
     ra_gj = load_ra_geojson()
     gdf   = gpd.GeoDataFrame.from_features(ra_gj["features"], crs="EPSG:4326")
 
@@ -231,7 +229,7 @@ def compute_ra_cartogram(dengue_casos: dict, max_iterations: int = 10) -> dict:
         gdf_proj,
         cartogram_attribute="dengue_casos",
         max_iterations=max_iterations,
-        max_average_error=0.0,   # always run all requested iterations
+        max_average_error=0.0,  # always run all requested iterations
     )
 
     carto_wgs = carto.to_crs("EPSG:4326")
@@ -1490,6 +1488,7 @@ with col_map:
         )
         if cartogram_iterations != st.session_state["cartogram_iterations"]:
             st.session_state["cartogram_iterations"] = cartogram_iterations
+            st.rerun()
     else:
         cartogram_iterations = st.session_state["cartogram_iterations"]
     # ──────────────────────────────────────────────────────────────────────
@@ -1611,12 +1610,13 @@ with col_map:
     if st.session_state["ra_layers"]:
         if st.session_state["cartogram_enabled"]:
             dengue_data   = attach_dengue_to_ra()
-            dengue_casos  = {
+            dengue_casos_dict = {
                 feat["properties"]["ra"]: feat["properties"].get("dengue_casos", 0)
                 for feat in dengue_data["features"]
             }
+            dengue_casos_tuple = tuple(sorted(dengue_casos_dict.items()))
             with st.spinner(f"Computing cartogram (iteration {cartogram_iterations})…"):
-                carto_gj = compute_ra_cartogram(dengue_casos, max_iterations=cartogram_iterations)
+                carto_gj = compute_ra_cartogram(dengue_casos_tuple, max_iterations=cartogram_iterations)
             carto_by_ra = {_norm(f["properties"]["ra"]): f for f in carto_gj["features"]}
             for label, layer in st.session_state["ra_layers"].items():
                 color    = layer["color"]
