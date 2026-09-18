@@ -5,6 +5,7 @@ import json
 import re
 import unicodedata
 import requests
+import copy
 from groq import Groq
 import folium
 from streamlit_folium import st_folium
@@ -13,6 +14,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_core.documents import Document
 from rank_bm25 import BM25Okapi
+import geopandas as gpd
+from cartogram import Cartogram
 
 st.set_page_config(page_title="PICAPS/Fiocruz Brasilia :: Agent", layout="wide")
 st.title("PICAPS/Fiocruz Brasilia :: Agent")
@@ -200,6 +203,51 @@ def load_ra_geojson():
     path = os.path.join(os.path.dirname(__file__), "database", "rasDF.json")
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+@st.cache_data(show_spinner=False)
+def compute_ra_cartogram(dengue_casos: dict) -> dict:
+    """Deform RA polygons proportionally to dengue case counts using
+    Gastner's continuous cartogram algorithm (Dougenik et al. 1985).
+
+    Parameters
+    ----------
+    dengue_casos : dict  {ra_name (str) -> case_count (int)}
+
+    Returns
+    -------
+    GeoJSON FeatureCollection with deformed geometries and original properties.
+    """
+    ra_gj = load_ra_geojson()
+    gdf   = gpd.GeoDataFrame.from_features(ra_gj["features"], crs="EPSG:4326")
+
+    # Map case counts onto the GeoDataFrame
+    gdf["dengue_casos"] = gdf["ra"].map(
+        {k: v for k, v in dengue_casos.items()}
+    ).fillna(0).astype(float)
+
+    # Cartogram requires a projected CRS and strictly positive values
+    gdf_proj = gdf.to_crs("EPSG:3857")
+    gdf_proj["dengue_casos"] = gdf_proj["dengue_casos"].clip(lower=1)
+
+    carto = Cartogram(
+        gdf_proj,
+        cartogram_attribute="dengue_casos",
+        max_iterations=10,
+        max_average_error=0.05,
+    )
+
+    # Reproject back to WGS-84 and rebuild GeoJSON
+    carto_wgs = carto.to_crs("EPSG:4326")
+    features  = []
+    for _, row in carto_wgs.iterrows():
+        geom = row.geometry.__geo_interface__
+        props = {col: row[col] for col in carto_wgs.columns if col != "geometry"}
+        # convert numpy types to native Python for JSON serialisation
+        props = {k: (int(v) if hasattr(v, "item") else v) for k, v in props.items()}
+        features.append({"type": "Feature", "geometry": geom, "properties": props})
+
+    return {"type": "FeatureCollection", "features": features}
 
 
 @st.cache_data(show_spinner=False)
@@ -1113,6 +1161,9 @@ def execute_command(parsed, lang="en"):
         layer_label = f"{icon} {category.title()}"
         if area:
             layer_label += f" – {area.title()}"
+        if name_filter:
+            layer_label += f" ({name_filter})"
+        # Accumulate: each unique category+area combination is a separate layer
         st.session_state["poi_layers"][layer_label] = {"pois": pois, "icon": icon, "color": color}
         lats = [p["lat"] for p in pois]
         lons = [p["lon"] for p in pois]
@@ -1316,13 +1367,14 @@ def execute_command(parsed, lang="en"):
 
     return None
 
-if "drawn_layers"  not in st.session_state: st.session_state["drawn_layers"]  = {}
-if "ra_layers"     not in st.session_state: st.session_state["ra_layers"]     = {}
-if "poi_layers"    not in st.session_state: st.session_state["poi_layers"]    = {}
-if "pin_layers"    not in st.session_state: st.session_state["pin_layers"]    = {}
-if "map_center"    not in st.session_state: st.session_state["map_center"]    = [-15.793889, -47.882778]
-if "chat_history"  not in st.session_state: st.session_state["chat_history"]  = []
-if "dengue_mode"   not in st.session_state: st.session_state["dengue_mode"]   = "ra"
+if "drawn_layers"       not in st.session_state: st.session_state["drawn_layers"]       = {}
+if "ra_layers"          not in st.session_state: st.session_state["ra_layers"]          = {}
+if "poi_layers"         not in st.session_state: st.session_state["poi_layers"]          = {}
+if "pin_layers"         not in st.session_state: st.session_state["pin_layers"]          = {}
+if "map_center"         not in st.session_state: st.session_state["map_center"]          = [-15.793889, -47.882778]
+if "chat_history"       not in st.session_state: st.session_state["chat_history"]        = []
+if "dengue_mode"        not in st.session_state: st.session_state["dengue_mode"]         = "ra"
+if "cartogram_enabled"  not in st.session_state: st.session_state["cartogram_enabled"]   = False
 
 col_chat, col_map = st.columns([1, 1])
 
@@ -1413,26 +1465,57 @@ with col_chat:
 with col_map:
     st.subheader("Map")
 
-    all_labels = (
-        list(st.session_state["ra_layers"].keys())
-        + list(st.session_state["drawn_layers"].keys())
-        + list(st.session_state["poi_layers"].keys())
-        + list(st.session_state["pin_layers"].keys())
+    # ── Cartogram toggle ───────────────────────────────────────────────────
+    cartogram_enabled = st.checkbox(
+        "🗺️ Dengue Cartogram  *(deform RA polygons by case count)*",
+        value=st.session_state["cartogram_enabled"],
+        help=(
+            "When enabled, Administrative Region polygons are deformed "
+            "proportionally to dengue case counts using Gastner's continuous "
+            "cartogram algorithm (Dougenik et al. 1985)."
+        ),
     )
-    special_labels = [
-        k for k in ("dengue_layer", "risco_layer", "queimada_layer")
-        if k in st.session_state
-    ]
-    display_labels = all_labels + [s.replace("_layer", "") for s in special_labels]
+    if cartogram_enabled != st.session_state["cartogram_enabled"]:
+        st.session_state["cartogram_enabled"] = cartogram_enabled
+        st.rerun()
 
-    if display_labels:
-        st.caption("**Active layers:** " + " · ".join(display_labels))
-        if st.button("🗑️ Clear all layers"):
-            for store in ["drawn_layers", "ra_layers", "poi_layers", "pin_layers"]:
-                st.session_state[store] = {}
-            for k in ["dengue_layer", "risco_layer", "queimada_layer"]:
-                st.session_state.pop(k, None)
-            st.rerun()
+    # ── Layer management panel ─────────────────────────────────────────────
+    all_layer_keys = (
+        [("ra",      k) for k in st.session_state["ra_layers"]]
+        + [("setor",   k) for k in st.session_state["drawn_layers"]]
+        + [("poi",     k) for k in st.session_state["poi_layers"]]
+        + [("pin",     k) for k in st.session_state["pin_layers"]]
+        + [("special", k) for k in ("dengue_layer", "risco_layer", "queimada_layer")
+           if k in st.session_state]
+    )
+
+    if all_layer_keys:
+        with st.expander(f"🗂️ Active layers ({len(all_layer_keys)})", expanded=False):
+            to_remove = []
+            for kind, key in all_layer_keys:
+                icon = {"ra": "🟦", "setor": "🔲", "poi": "📍",
+                        "pin": "📌", "special": "🌡️"}.get(kind, "▪️")
+                display = key.replace("_layer", "") if kind == "special" else key
+                col1, col2 = st.columns([5, 1])
+                col1.markdown(f"{icon} {display}")
+                if col2.button("✕", key=f"rm_{kind}_{key}"):
+                    to_remove.append((kind, key))
+            if st.button("🗑️ Clear all layers", key="clear_all"):
+                for store in ["drawn_layers", "ra_layers", "poi_layers", "pin_layers"]:
+                    st.session_state[store] = {}
+                for k in ["dengue_layer", "risco_layer", "queimada_layer"]:
+                    st.session_state.pop(k, None)
+                st.rerun()
+            if to_remove:
+                store_map = {"ra": "ra_layers", "setor": "drawn_layers",
+                             "poi": "poi_layers", "pin": "pin_layers"}
+                for kind, key in to_remove:
+                    if kind == "special":
+                        st.session_state.pop(key, None)
+                    else:
+                        st.session_state[store_map[kind]].pop(key, None)
+                st.rerun()
+    # ──────────────────────────────────────────────────────────────────────
 
     center = st.session_state["map_center"]
     m = folium.Map(location=center, zoom_start=11, tiles=None)
@@ -1451,35 +1534,33 @@ with col_map:
         attr="Tiles © Esri", name="Satellite", control=True,
     ).add_to(m)
 
+    # ── Dengue choropleth ──────────────────────────────────────────────────
     if "dengue_layer" in st.session_state:
-        dengue_mode = st.session_state.get("dengue_mode", "ra")
+        dengue_mode  = st.session_state.get("dengue_mode", "ra")
         dengue_feats = st.session_state["dengue_layer"].get("features", [])
         if dengue_feats:
-            if dengue_mode == "ra":
-                tooltip_fields  = ["ra", "dengue_casos"]
-                tooltip_aliases = ["Region:", "Cases:"]
-            else:
-                tooltip_fields  = ["NM_SUBDIST", "dengue_casos"]
-                tooltip_aliases = ["Subregions:", "Cases:"]
+            tooltip_fields, tooltip_aliases = (
+                (["ra", "dengue_casos"], ["Region:", "Cases:"])
+                if dengue_mode == "ra"
+                else (["NM_SUBDIST", "dengue_casos"], ["Subregion:", "Cases:"])
+            )
             folium.GeoJson(
                 st.session_state["dengue_layer"],
                 name="Dengue 2026",
-                style_function=lambda feature: {
-                    "fillColor": get_dengue_color(feature["properties"]["dengue_casos"]),
+                style_function=lambda feat: {
+                    "fillColor": get_dengue_color(feat["properties"]["dengue_casos"]),
                     "color": "black", "weight": 0.3, "fillOpacity": 0.7,
                 },
-                tooltip=folium.GeoJsonTooltip(
-                    fields=tooltip_fields,
-                    aliases=tooltip_aliases,
-                ),
+                tooltip=folium.GeoJsonTooltip(fields=tooltip_fields, aliases=tooltip_aliases),
             ).add_to(m)
 
+    # ── Geological risk ────────────────────────────────────────────────────
     if "risco_layer" in st.session_state:
         folium.GeoJson(
             st.session_state["risco_layer"],
             name="Geological Risk (CPRM)",
             style_function=lambda feat: {
-                "fillColor":   RISCO_COLORS.get(feat["properties"]["grau_risco"], "#fc8d59"),
+                "fillColor": RISCO_COLORS.get(feat["properties"]["grau_risco"], "#fc8d59"),
                 "color": "#333", "weight": 1.5, "fillOpacity": 0.65,
             },
             tooltip=folium.GeoJsonTooltip(
@@ -1496,42 +1577,72 @@ with col_map:
             ),
         ).add_to(m)
 
+    # ── Wildfire perimeters ────────────────────────────────────────────────
     if "queimada_layer" in st.session_state:
         folium.GeoJson(
             st.session_state["queimada_layer"],
             name="Fires 2025",
             style_function=lambda feat: {
-                "fillColor":   QUEIMADA_COLORS.get(feat["properties"]["mes"], "#fdae61"),
+                "fillColor": QUEIMADA_COLORS.get(feat["properties"]["mes"], "#fdae61"),
                 "color": "#333", "weight": 0.5, "fillOpacity": 0.6,
             },
             tooltip=folium.GeoJsonTooltip(
                 fields=["mes_nome", "area_ha", "data"],
-                aliases=["Month:", "Area:", "Date:"],
+                aliases=["Month:", "Area (ha):", "Date:"],
             ),
         ).add_to(m)
 
-    # ── Highlighted RA polygons (from "draw" command) ──────────────────────
-    for label, layer in st.session_state["ra_layers"].items():
-        color   = layer["color"]
-        payload = {"type": "FeatureCollection", "features": layer["features"]}
-        folium.GeoJson(
-            payload, name=f"RA: {label}",
-            style_function=lambda _, c=color: {
-                "fillColor": c, "color": c, "weight": 2.5, "fillOpacity": 0.25,
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=["legenda"],
-                aliases=[""],
-                style="font-size: 13px; font-weight: bold;",
-            ),
-        ).add_to(m)
+    # ── RA polygons — accumulated, one entry per RA ───────────────────────
+    if st.session_state["ra_layers"]:
+        if st.session_state["cartogram_enabled"]:
+            dengue_data   = attach_dengue_to_ra()
+            dengue_casos  = {
+                feat["properties"]["ra"]: feat["properties"].get("dengue_casos", 0)
+                for feat in dengue_data["features"]
+            }
+            with st.spinner("Computing cartogram…"):
+                carto_gj = compute_ra_cartogram(dengue_casos)
+            carto_by_ra = {_norm(f["properties"]["ra"]): f for f in carto_gj["features"]}
+            for label, layer in st.session_state["ra_layers"].items():
+                color    = layer["color"]
+                ra_feats = [
+                    carto_by_ra.get(_norm(f["properties"].get("ra", "")), f)
+                    for f in layer["features"]
+                ]
+                folium.GeoJson(
+                    {"type": "FeatureCollection", "features": ra_feats},
+                    name=f"RA (cartogram): {label}",
+                    style_function=lambda _, c=color: {
+                        "fillColor": c, "color": c, "weight": 2.5, "fillOpacity": 0.35,
+                    },
+                    tooltip=folium.GeoJsonTooltip(
+                        fields=["legenda", "dengue_casos"],
+                        aliases=["", "Dengue cases:"],
+                        style="font-size: 13px; font-weight: bold;",
+                    ),
+                ).add_to(m)
+        else:
+            for label, layer in st.session_state["ra_layers"].items():
+                color = layer["color"]
+                folium.GeoJson(
+                    {"type": "FeatureCollection", "features": layer["features"]},
+                    name=f"RA: {label}",
+                    style_function=lambda _, c=color: {
+                        "fillColor": c, "color": c, "weight": 2.5, "fillOpacity": 0.25,
+                    },
+                    tooltip=folium.GeoJsonTooltip(
+                        fields=["legenda"],
+                        aliases=[""],
+                        style="font-size: 13px; font-weight: bold;",
+                    ),
+                ).add_to(m)
 
-    # ── Census sectors (from explicit "setor" command only) ────────────────
+    # ── Census sectors — accumulated, one entry per RA ────────────────────
     for label, layer in st.session_state["drawn_layers"].items():
-        color   = layer["color"]
-        payload = {"type": "FeatureCollection", "features": layer["features"]}
+        color = layer["color"]
         folium.GeoJson(
-            payload, name=f"Setores: {label}",
+            {"type": "FeatureCollection", "features": layer["features"]},
+            name=f"Sectors: {label}",
             style_function=lambda _, c=color: {
                 "fillColor": c, "color": c, "weight": 0.8, "fillOpacity": 0.30,
             },
@@ -1541,13 +1652,14 @@ with col_map:
             ),
         ).add_to(m)
 
+    # ── POIs — accumulated, one FeatureGroup per search ───────────────────
     for label, layer in st.session_state["poi_layers"].items():
         fg = folium.FeatureGroup(name=label)
         for poi in layer["pois"]:
             popup_html = (
                 f"<b>{poi['name']}</b>"
-                + (f"<br>{poi['address']}" if poi["address"] else "")
-                + (f"<br>☎ {poi['phone']}"  if poi["phone"]   else "")
+                + (f"<br>{poi['address']}" if poi.get("address") else "")
+                + (f"<br>☎ {poi['phone']}"  if poi.get("phone")   else "")
             )
             folium.Marker(
                 location=[poi["lat"], poi["lon"]],
@@ -1557,6 +1669,7 @@ with col_map:
             ).add_to(fg)
         fg.add_to(m)
 
+    # ── Geocoded pins ──────────────────────────────────────────────────────
     for label, pin in st.session_state["pin_layers"].items():
         folium.Marker(
             location=[pin["lat"], pin["lon"]],
