@@ -1368,7 +1368,7 @@ if "map_center"         not in st.session_state: st.session_state["map_center"] 
 if "chat_history"       not in st.session_state: st.session_state["chat_history"]        = []
 if "dengue_mode"        not in st.session_state: st.session_state["dengue_mode"]         = "ra"
 if "cartogram_enabled"  not in st.session_state: st.session_state["cartogram_enabled"]   = False
-if "cartogram_iterations" not in st.session_state: st.session_state["cartogram_iterations"] = 5
+if "cartogram_iterations" not in st.session_state: st.session_state["cartogram_iterations"] = 0
 
 col_chat, col_map = st.columns([1, 1])
 
@@ -1459,38 +1459,25 @@ with col_chat:
 with col_map:
     st.subheader("Map")
 
-    # ── Cartogram toggle + deformation slider ─────────────────────────────
-    cartogram_enabled = st.checkbox(
-        "🗺️ Dengue Cartogram  *(deform RA polygons by case count)*",
-        value=st.session_state["cartogram_enabled"],
+    # ── Cartogram deformation slider (0 = original map, 1–20 = Gastner) ───
+    cartogram_iterations = st.slider(
+        "🗺️ Dengue Cartogram — deformation intensity",
+        min_value=0,
+        max_value=20,
+        value=st.session_state["cartogram_iterations"],
+        step=1,
         help=(
-            "When enabled, Administrative Region polygons are deformed "
-            "proportionally to dengue case counts using Gastner's continuous "
-            "cartogram algorithm (Dougenik et al. 1985)."
+            "0 = original polygons (no deformation). "
+            "1–20 = RA polygons deformed proportionally to dengue case counts "
+            "using Gastner's continuous cartogram algorithm (Dougenik et al. 1985). "
+            "Higher values = stronger distortion. Previously computed levels are cached."
         ),
     )
-    if cartogram_enabled != st.session_state["cartogram_enabled"]:
-        st.session_state["cartogram_enabled"] = cartogram_enabled
+    if cartogram_iterations != st.session_state["cartogram_iterations"]:
+        st.session_state["cartogram_iterations"] = cartogram_iterations
         st.rerun()
-
-    if st.session_state["cartogram_enabled"]:
-        cartogram_iterations = st.slider(
-            "Deformation intensity (iterations)",
-            min_value=1,
-            max_value=20,
-            value=st.session_state["cartogram_iterations"],
-            step=1,
-            help=(
-                "Controls how strongly polygons are deformed: "
-                "1 = very subtle, 20 = maximum distortion. "
-                "The map redraws automatically at each step."
-            ),
-        )
-        if cartogram_iterations != st.session_state["cartogram_iterations"]:
-            st.session_state["cartogram_iterations"] = cartogram_iterations
-            st.rerun()
-    else:
-        cartogram_iterations = st.session_state["cartogram_iterations"]
+    cartogram_enabled = cartogram_iterations > 0
+    st.session_state["cartogram_enabled"] = cartogram_enabled
     # ──────────────────────────────────────────────────────────────────────
 
     # ── Layer management panel ─────────────────────────────────────────────
